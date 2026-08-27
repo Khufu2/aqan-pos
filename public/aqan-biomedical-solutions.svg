@@ -1,0 +1,13 @@
+<svg width="620" height="200" viewBox="0 0 620 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Aqan Biomedical Solutions</title>
+  <desc id="desc">AQAN Biomedical Solutions green and blue medical equipment logo</desc>
+  <rect x="8" y="8" width="184" height="184" rx="44" fill="white"/>
+  <rect x="42" y="56" width="55" height="24" rx="8" fill="#23B8EA"/>
+  <path d="M105 34H151C157.627 34 163 39.3726 163 46V91H105V34Z" fill="#39B96F"/>
+  <path d="M42 89H96V146C96 152.627 90.6274 158 84 158H54C47.3726 158 42 152.627 42 146V89Z" fill="#3CB977"/>
+  <path d="M105 100H163V146C163 152.627 157.627 158 151 158H105V100Z" fill="#28AEE7"/>
+  <text x="208" y="84" fill="#14232E" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="42" letter-spacing="-1.2">Aqan</text>
+  <text x="208" y="123" fill="#14232E" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="36" letter-spacing="-1.1">Biomedical</text>
+  <text x="208" y="160" fill="#14232E" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="36" letter-spacing="-1.1">Solutions</text>
+  <text x="210" y="184" fill="#39B96F" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="13" letter-spacing="2.6">FIXING THE ROOT CAUSE</text>
+</svg>
