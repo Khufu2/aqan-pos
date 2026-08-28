@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./operations.css";
 import "./accessibility.css";
+import "./purchasing-improvements.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://aqan-biomedical-pos.vercel.app"),
