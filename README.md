@@ -119,3 +119,12 @@ The timeout defaults can be overridden for a controlled canary with `SITES_INSTA
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+
+
+## Operational workflow migration
+
+For the complete purchasing, batch/expiry, stock-movement, payment, return, proforma, and expense workflows, also apply:
+
+- `supabase/migrations/20260828130308_complete_business_workflows.sql`
+
+The migration is additive and preserves existing AQAN production data.
