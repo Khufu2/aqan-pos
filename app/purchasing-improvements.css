@@ -1,0 +1,32 @@
+html, body { overflow-x: hidden; overflow-y: auto; }
+.main-area { min-height: 100dvh; }
+
+.ops-supplier-panel, .ops-purchase-orders {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--white);
+  padding: 18px;
+}
+.ops-supplier-panel { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(300px, 1.2fr) auto; gap: 18px; align-items: center; }
+.ops-supplier-panel h3, .ops-purchase-orders h2 { margin: 4px 0 5px; font-size: 18px; color: var(--ink); }
+.ops-supplier-panel p, .ops-po-empty { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.ops-supplier-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ops-supplier-chips > span { display: grid; gap: 3px; min-width: 130px; padding: 10px 12px; background: var(--canvas); border: 1px solid var(--border); border-radius: 11px; }
+.ops-supplier-chips b { color: var(--ink); font-size: 13px; }
+.ops-supplier-chips small { color: var(--muted); font-size: 11px; }
+.ops-empty-supplier { color: var(--muted); font-style: italic; }
+.ops-purchase-orders .panel-heading { padding: 0 0 12px; border-bottom: 1px solid var(--border); }
+.ops-po-list > div { display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 15px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ops-po-list > div:last-child { border-bottom: 0; }
+.ops-po-list span { display: grid; gap: 3px; }
+.ops-po-list b { color: var(--ink); font-size: 14px; }
+.ops-po-list small { color: var(--muted); font-size: 12px; }
+.quote-product-cell { display: flex; align-items: center; gap: 10px; }
+.quote-product-cell img, .quote-product-placeholder { width: 34px; height: 34px; flex: none; border-radius: 8px; object-fit: cover; }
+.quote-product-placeholder { display: grid; place-items: center; background: #e6f6fe; color: #168fc8; }
+.app-shell[data-theme="dark"] .ops-supplier-panel, .app-shell[data-theme="dark"] .ops-purchase-orders { background: #102128; border-color: #25414b; }
+.app-shell[data-theme="dark"] .ops-supplier-chips > span { background: #0b1a20; border-color: #2b4a55; }
+
+@media (max-width: 900px) { .ops-supplier-panel { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .ops-po-list > div { grid-template-columns: 1fr; gap: 7px; } .ops-supplier-panel, .ops-purchase-orders { padding: 15px; } }
