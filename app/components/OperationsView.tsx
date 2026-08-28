@@ -46,6 +46,43 @@ const text = (form: FormData, key: string) =>
   String(form.get(key) || "").trim();
 const today = () => new Date().toISOString().slice(0, 10);
 
+type DataToolKind = "products" | "customers" | "suppliers";
+
+function csvValue(value: unknown) {
+  const string = String(value ?? "");
+  return /[",\n]/.test(string) ? `"${string.replaceAll('"', '""')}"` : string;
+}
+
+function parseCsv(source: string) {
+  const rows: string[][] = [];
+  let row: string[] = [], value = "", quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '"') {
+      if (quoted && source[index + 1] === '"') { value += '"'; index += 1; }
+      else quoted = !quoted;
+    } else if (character === "," && !quoted) { row.push(value.trim()); value = ""; }
+    else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && source[index + 1] === "\n") index += 1;
+      row.push(value.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = []; value = "";
+    } else value += character;
+  }
+  row.push(value.trim());
+  if (row.some(Boolean)) rows.push(row);
+  const [headers = [], ...values] = rows;
+  return values.map((entry) => Object.fromEntries(headers.map((header, index) => [header.trim().toLowerCase(), entry[index]?.trim() || ""])));
+}
+
+function downloadCsv(filename: string, headers: string[], rows: Array<Array<unknown>>) {
+  const csv = [headers, ...rows].map((row) => row.map(csvValue).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const anchor = document.createElement("a");
+  anchor.href = url; anchor.download = filename; anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
 function Status({
   children,
   tone,
@@ -134,8 +171,10 @@ export default function OperationsView({
     | "return"
     | "customer"
     | "proforma"
+    | "dataTools"
     | null
   >(null);
+  const [dataToolKind, setDataToolKind] = useState<DataToolKind>("products");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
@@ -250,6 +289,9 @@ export default function OperationsView({
   const actions =
     mode === "products" ? (
       <>
+        <button className="button secondary" onClick={() => { setDataToolKind("products"); setModal("dataTools"); }}>
+          Import / export
+        </button>
         <button className="button secondary" onClick={() => setModal("adjust")}>
           Adjust stock
         </button>
@@ -259,6 +301,9 @@ export default function OperationsView({
       </>
     ) : mode === "purchases" ? (
       <>
+        <button className="button secondary" onClick={() => { setDataToolKind("suppliers"); setModal("dataTools"); }}>
+          Import suppliers
+        </button>
         <button className="button secondary" onClick={() => setModal("purchaseOrder")}>
           New purchase order
         </button>
@@ -291,9 +336,14 @@ export default function OperationsView({
         + Add expense
       </button>
     ) : mode === "customers" ? (
-      <button className="button primary" onClick={() => setModal("customer")}>
-        + New customer
-      </button>
+      <>
+        <button className="button secondary" onClick={() => { setDataToolKind("customers"); setModal("dataTools"); }}>
+          Import / export
+        </button>
+        <button className="button primary" onClick={() => setModal("customer")}>
+          + New customer
+        </button>
+      </>
     ) : null;
   return (
     <div className="page-content operations-page">
@@ -373,6 +423,7 @@ export default function OperationsView({
               onPayment={() => setModal("customerPayment")}
               onSale={() => onNavigate("sell")}
               onQuote={() => onNavigate("quotes")}
+              onStatement={() => undefined}
               onCreate={() => setModal("customer")}
             />
           )}
@@ -522,6 +573,16 @@ export default function OperationsView({
           onSave={(input) =>
             save(() => createProforma(input), "Proforma invoice created.")
           }
+        />
+      )}
+      {modal === "dataTools" && (
+        <DataToolsForm
+          initialKind={dataToolKind}
+          membership={membership}
+          data={data}
+          base={base}
+          onClose={() => setModal(null)}
+          onComplete={(message) => save(async () => undefined, message)}
         />
       )}
     </div>
@@ -1209,6 +1270,31 @@ function Reports({
   };
 }) {
   const [now] = useState(() => Date.now());
+  const [period, setPeriod] = useState<"month" | "week" | "today" | "custom">("month");
+  const [from, setFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+  const [to, setTo] = useState(today);
+  const bounds = useMemo(() => {
+    const end = new Date(`${to}T23:59:59`);
+    if (period === "custom") return { start: new Date(`${from}T00:00:00`), end };
+    const start = new Date();
+    if (period === "month") start.setDate(1);
+    else if (period === "week") start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    start.setHours(0, 0, 0, 0);
+    return { start, end: new Date() };
+  }, [from, period, to]);
+  const inRange = (value: string) => {
+    const point = new Date(value).getTime();
+    return point >= bounds.start.getTime() && point <= bounds.end.getTime();
+  };
+  const reportSales = data.sales.filter((sale) => inRange(sale.sold_at));
+  const reportItems = data.saleItems.filter((item) => reportSales.some((sale) => sale.id === item.sale_id));
+  const reportExpenses = data.expenses.filter((expense) => inRange(expense.expense_date));
+  const reportMetrics = {
+    revenue: reportSales.reduce((sum, sale) => sum + Number(sale.total), 0),
+    cogs: reportItems.reduce((sum, item) => sum + Number(item.cost_price) * Number(item.quantity - item.returned_quantity), 0),
+    expenses: reportExpenses.filter((expense) => expense.status === "posted").reduce((sum, expense) => sum + Number(expense.amount) + Number(expense.tax_amount), 0),
+  };
+  const exportReport = () => downloadCsv("aqan-profit-report.csv", ["Period", "Sales revenue", "Cost of goods sold", "Gross profit", "Expenses", "Net operating profit"], [[`${from} to ${to}`, reportMetrics.revenue, reportMetrics.cogs, reportMetrics.revenue - reportMetrics.cogs, reportMetrics.expenses, reportMetrics.revenue - reportMetrics.cogs - reportMetrics.expenses]]);
   const inventory = data.products.reduce(
     (a, p) => a + p.stock * (p.average_cost || p.cost),
     0,
@@ -1217,35 +1303,30 @@ function Reports({
     <>
       <div className="ops-filterbar">
         <div>
-          <button className="active">This month</button>
-          <button>This week</button>
-          <button>Today</button>
-          <button>Custom range</button>
+          {([ ["month", "This month"], ["week", "This week"], ["today", "Today"], ["custom", "Custom range"] ] as const).map(([key, label]) => <button key={key} className={period === key ? "active" : ""} onClick={() => setPeriod(key)}>{label}</button>)}
         </div>
-        <button className="button secondary" onClick={() => window.print()}>
-          Print / Save PDF
-        </button>
+        <div className="ops-report-actions">{period === "custom" ? <><input aria-label="Report start date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} /><input aria-label="Report end date" type="date" value={to} onChange={(event) => setTo(event.target.value)} /></> : null}<button className="button secondary" onClick={exportReport}>Export CSV</button><button className="button secondary" onClick={() => window.print()}>Print / Save PDF</button></div>
       </div>
       <section className="ops-kpis report">
         <article>
           <span>Sales revenue</span>
-          <strong>{money(metrics.revenue)}</strong>
+          <strong>{money(reportMetrics.revenue)}</strong>
         </article>
         <article>
           <span>Cost of goods sold</span>
-          <strong>{money(metrics.cogs)}</strong>
+          <strong>{money(reportMetrics.cogs)}</strong>
         </article>
         <article>
           <span>Gross profit</span>
-          <strong>{money(metrics.gross)}</strong>
+          <strong>{money(reportMetrics.revenue - reportMetrics.cogs)}</strong>
         </article>
         <article>
           <span>Operating expenses</span>
-          <strong>{money(metrics.expenses)}</strong>
+          <strong>{money(reportMetrics.expenses)}</strong>
         </article>
         <article>
           <span>Net operating profit</span>
-          <strong>{money(metrics.net)}</strong>
+          <strong>{money(reportMetrics.revenue - reportMetrics.cogs - reportMetrics.expenses)}</strong>
         </article>
         <article>
           <span>Inventory value</span>
@@ -1263,7 +1344,7 @@ function Reports({
       <div className="ops-split">
         <div className="ops-card">
           <h3>Sales by product</h3>
-          {[...data.saleItems]
+          {[...reportItems]
             .sort((a, b) => b.line_total - a.line_total)
             .slice(0, 8)
             .map((i) => (
@@ -1328,6 +1409,7 @@ function Customers({
   onPayment,
   onSale,
   onQuote,
+  onStatement,
   onCreate,
 }: {
   data: OperationsData;
@@ -1335,8 +1417,28 @@ function Customers({
   onPayment: () => void;
   onSale: () => void;
   onQuote: () => void;
+  onStatement: () => void;
   onCreate: () => void;
 }) {
+  const printStatement = (customer: AqanData["customers"][number]) => {
+    const sales = data.sales.filter((sale) => sale.customer_id === customer.id);
+    const payments = data.customerPayments.filter((payment) => payment.customer_id === customer.id);
+    const rows = [
+      ...sales.map((sale) => ({ date: sale.sold_at, reference: sale.invoice_number, debit: sale.total, credit: sale.amount_paid, balance: sale.balance_due, type: "Invoice" })),
+      ...payments.map((payment) => ({ date: payment.received_at, reference: payment.reference || "Customer payment", debit: 0, credit: payment.amount, balance: 0, type: "Payment" })),
+    ].sort((a, b) => a.date.localeCompare(b.date));
+    let running = 0;
+    const body = rows.map((row) => {
+      running += Number(row.debit) - Number(row.credit);
+      return `<tr><td>${date(row.date)}</td><td>${row.type}</td><td>${row.reference}</td><td>${money(row.debit)}</td><td>${money(row.credit)}</td><td>${money(running)}</td></tr>`;
+    }).join("");
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`<html><head><title>Statement - ${customer.name}</title><style>body{font:15px Arial;padding:36px;max-width:900px;margin:auto;color:#16364d}table{width:100%;border-collapse:collapse;margin-top:22px}th,td{padding:10px;border-bottom:1px solid #dbe7ee;text-align:left}th{font-size:11px;text-transform:uppercase;color:#58758a}.total{margin-top:20px;text-align:right;font-size:18px;font-weight:bold}</style></head><body><h1>Customer statement</h1><p><b>${customer.name}</b><br>${customer.phone || customer.email || "Customer account"}<br>Generated ${date(today())}</p><table><thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Invoice</th><th>Payment</th><th>Running balance</th></tr></thead><tbody>${body || "<tr><td colspan='6'>No transactions in this account.</td></tr>"}</tbody></table><p class='total'>Closing balance: ${money(running)}</p></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
   return (
     <div className="ops-customer-grid">
       {base.customers.map((c) => {
@@ -1374,6 +1476,7 @@ function Customers({
               <button onClick={onSale}>New sale</button>
               <button onClick={onQuote}>New quote</button>
               <button onClick={onPayment}>Record payment</button>
+              <button onClick={() => { printStatement(c); onStatement(); }}>Statement</button>
               {c.phone && (
                 <a
                   href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
@@ -1399,6 +1502,69 @@ function Customers({
       </button>
     </div>
   );
+}
+
+function DataToolsForm({
+  initialKind,
+  membership,
+  data,
+  base,
+  onClose,
+  onComplete,
+}: {
+  initialKind: DataToolKind;
+  membership: Membership;
+  data: OperationsData;
+  base: AqanData;
+  onClose: () => void;
+  onComplete: (message: string) => void;
+}) {
+  const [kind, setKind] = useState<DataToolKind>(initialKind);
+  const [rows, setRows] = useState<Array<Record<string, string>>>([]);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const canImport = ["owner", "admin", "manager", "inventory", "sales", "salesperson"].includes(membership.role);
+  const exportRows = () => {
+    if (kind === "products") {
+      downloadCsv("aqan-products.csv", ["name", "sku", "barcode", "category", "description", "unit", "cost", "retail_price", "wholesale_price", "opening_stock", "reorder_level", "tax_rate"], data.products.map((product) => [product.name, product.sku, product.barcode, product.category, product.description, product.unit_of_measure, product.average_cost || product.cost, product.price, product.wholesale_price, product.stock, product.reorder_level, product.tax_rate * 100]));
+    } else if (kind === "customers") {
+      downloadCsv("aqan-customers.csv", ["name", "contact_name", "phone", "whatsapp", "email", "tax_number", "billing_address", "city", "region", "country", "category", "payment_terms", "credit_limit"], base.customers.map((customer) => [customer.name, customer.contact_name, customer.phone, customer.phone, customer.email, "", "", customer.city, "", "Tanzania", customer.customer_type, "", ""]));
+    } else {
+      downloadCsv("aqan-suppliers.csv", ["name", "contact_name", "phone", "whatsapp", "email", "tax_number", "address", "city", "region", "payment_terms", "notes"], base.suppliers.map((supplier) => [supplier.name, supplier.contact_name, supplier.phone, "", supplier.email, "", "", "", "", supplier.payment_terms, ""]));
+    }
+  };
+  const templateRows: Record<DataToolKind, string> = {
+    products: "name,sku,barcode,category,description,unit,cost,retail_price,wholesale_price,opening_stock,reorder_level,tax_rate\nExample product,SKU-001,123456789,Consumables,Optional description,piece,8500,12000,11000,0,5,18",
+    customers: "name,contact_name,phone,whatsapp,email,tax_number,billing_address,city,region,country,category,payment_terms,credit_limit\nExample Customer,Jane,+255700000000,+255700000000,customer@example.com,,Dar es Salaam,Dar es Salaam,Dar es Salaam,Tanzania,Retail,30 days,0",
+    suppliers: "name,contact_name,phone,whatsapp,email,tax_number,address,city,region,payment_terms,notes\nExample Supplier,John,+255700000000,+255700000000,supplier@example.com,,Dar es Salaam,Dar es Salaam,Dar es Salaam,30 days,Imported supplier",
+  };
+  const downloadTemplate = () => {
+    const url = URL.createObjectURL(new Blob([templateRows[kind]], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a"); anchor.href = url; anchor.download = `aqan-${kind}-template.csv`; anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  const importRows = async () => {
+    if (!rows.length) { setError("Choose a CSV file with at least one valid row."); return; }
+    if (!canImport) { setError("Your role is read-only for imports."); return; }
+    setBusy(true); setError("");
+    try {
+      for (const row of rows) {
+        if (!row.name) throw new Error("Every imported row needs a name.");
+        if (kind === "customers") {
+          await addCustomer({ organization_id: membership.organization_id, name: row.name, contact_name: row.contact_name || null, phone: row.phone || null, whatsapp: row.whatsapp || row.phone || null, email: row.email || null, tax_number: row.tax_number || null, billing_address: row.billing_address || null, delivery_address: row.delivery_address || null, city: row.city || "Dar es Salaam", region: row.region || null, country: row.country || "Tanzania", customer_category: row.category || null, payment_terms: row.payment_terms || null, credit_limit: Number(row.credit_limit || 0), customer_type: row.customer_type || "Customer" });
+        } else if (kind === "suppliers") {
+          await addSupplier({ organization_id: membership.organization_id, name: row.name, contact_name: row.contact_name || null, phone: row.phone || null, whatsapp: row.whatsapp || row.phone || null, email: row.email || null, tax_number: row.tax_number || null, address: row.address || null, city: row.city || null, region: row.region || null, payment_terms: row.payment_terms || null, notes: row.notes || null, status: "active" });
+        } else {
+          const openingStock = Number(row.opening_stock || row.stock || 0);
+          const cost = Number(row.cost || 0);
+          await createOperationalProduct({ organization_id: membership.organization_id, name: row.name, sku: row.sku || "", barcode: row.barcode || "", category: row.category || "General", description: row.description || "", product_type: row.product_type || "product", unit: row.unit || "piece", purchase_unit: row.purchase_unit || row.unit || "piece", units_per_purchase: Number(row.units_per_purchase || 1), retail_price: Number(row.retail_price || row.selling_price || 0), wholesale_price: row.wholesale_price || null, distributor_price: row.distributor_price || null, minimum_price: row.minimum_price || null, cost, tax_code: row.tax_code || "vat18", tax_rate: Number(row.tax_rate || 18) / 100, tax_inclusive: row.tax_inclusive === "true", discount_eligible: row.discount_eligible !== "false", track_inventory: row.track_inventory !== "false", allow_negative_stock: row.allow_negative_stock === "true", reorder_level: Number(row.reorder_level || 0), reorder_quantity: row.reorder_quantity || null, serial_tracked: row.serial_tracked === "true", active: row.active !== "false" }, openingStock > 0 ? { supplier_id: "", purchase_date: today(), reference: "Opening inventory import", quantity: openingStock, purchase_unit: row.purchase_unit || row.unit || "piece", units_per_purchase: Number(row.units_per_purchase || 1), unit_cost: cost, cost_per_selling_unit: cost, batch_number: row.batch_number || "", manufacturing_date: row.manufacturing_date || "", expiry_date: row.expiry_date || "", payment_status: "paid", payment_method: "import" } : null);
+        }
+      }
+      onComplete(`${rows.length} ${kind} imported into live AQAN records.`);
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Import could not be completed."); }
+    finally { setBusy(false); }
+  };
+  return <Modal title="Import & export business data" subtitle="Use a reviewed CSV to migrate products, customers or suppliers. Product opening stock becomes a traceable opening inventory record." onClose={onClose}><div className="ops-import-tabs">{(["products", "customers", "suppliers"] as DataToolKind[]).map((option) => <button type="button" className={kind === option ? "active" : ""} onClick={() => { setKind(option); setRows([]); setError(""); }} key={option}>{option}</button>)}</div><div className="ops-import-actions"><button type="button" className="button secondary" onClick={downloadTemplate}>Download CSV template</button><button type="button" className="button secondary" onClick={exportRows}>Export live {kind}</button></div><Field label={`Import ${kind} CSV`}><input type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setError(""); setRows(parseCsv(await file.text())); }} /></Field>{rows.length ? <div className="ops-import-preview"><strong>{rows.length} rows ready to import</strong><small>Preview: {rows.slice(0, 3).map((row) => row.name).join(" Â· ")}{rows.length > 3 ? " â¦" : ""}</small></div> : <p className="form-note">Download the template first. AQAN validates each row and writes real customer, supplier or product records only after you confirm.</p>}{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button className="button secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button primary" type="button" onClick={() => void importRows()} disabled={busy || !rows.length || !canImport}>{busy ? "Importing live recordsâ¦" : `Import ${rows.length || ""} ${kind}`}</button></div></Modal>;
 }
 
 function ProductForm({
