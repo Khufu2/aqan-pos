@@ -42,6 +42,9 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
   if (membershipError || !inviter) return response({ error: "Only AQAN owners and administrators can invite staff." }, 403);
+  if (inviter.role === "admin" && (role === "admin" || role === "manager")) {
+    return response({ error: "Only the workspace owner can invite an administrator or manager." }, 403);
+  }
 
   const redirectTo = new URL("/", request.url);
   redirectTo.searchParams.set("setup", "staff");
