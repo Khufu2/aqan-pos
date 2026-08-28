@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 46780)
-Total output lines: 1923
-
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -782,7 +779,728 @@ function FacilityCrmView({
                 <span>Opportunity stage</span>
                 <strong style={{ fontSize: 16, textTransform: "capitalize" }}>
                   {selected.lead_status.replaceAll("_", " ")}
-                </strong>…16780 tokens truncated…"warehouse_id" disabled={!canWrite}><option value="">Main / not assigned</option>{data.warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label><label>Batch / lot number<input name="batch_number" disabled={!canWrite}/></label><label>Expiry date<input name="expiry_date" type="date" disabled={!canWrite}/></label><label>Unit cost (TZS)<input name="cost_per_unit" type="number" min="0" disabled={!canWrite}/></label><label>Supplier invoice / GRN ref<input name="supplier_invoice" disabled={!canWrite}/></label><label className="span-two">Receiving notes<textarea name="notes" rows={2} disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite||busy||!data.products.length}>{busy?"Receiving…":"Post goods receipt"}</button></div></form><form className="table-panel" onSubmit={close}><div className="panel-heading"><div><span className="section-kicker">End of shift</span><h2>Close cash session</h2></div></div><div className="form-grid" style={{padding:18}}><label>Open session<select name="session_id" required disabled={!canWrite}><option value="">Select open session</option>{data.cashSessions.filter(s=>s.status==="open").map(s=><option key={s.id} value={s.id}>{new Date(s.opened_at).toLocaleString("en-TZ")} · float {formatTzs(Number(s.opening_float))}</option>)}</select></label><label>Counted cash (TZS)<input name="counted_cash" type="number" min="0" required disabled={!canWrite}/></label><label className="span-two">Close notes<textarea name="notes" rows={2} disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite||busy||!data.cashSessions.some(s=>s.status==="open")}>{busy?"Closing…":"Close & reconcile"}</button></div></form></section></div><LogisticsCore data={data} membership={membership} onToast={onToast} onRefresh={onRefresh}/></>;
+                </strong>
+                <small>live pipeline status</small>
+              </div>
+              <div>
+                <span>Primary route</span>
+                <strong style={{ fontSize: 16 }}>
+                  {selected.preferred_channel ||
+                    (selected.email
+                      ? "Email"
+                      : selected.phone
+                        ? "Phone"
+                        : "") ||
+                    "Research"}
+                </strong>
+                <small>{contactName(selected)}</small>
+              </div>
+              <div>
+                <span>Equipment context</span>
+                <strong>{selected.equipment_count}</strong>
+                <small>equipment lines recorded</small>
+              </div>
+              <div>
+                <span>Service potential</span>
+                <strong>{selected.service_count}</strong>
+                <small>service records</small>
+              </div>
+            </section>
+            <div className="service-layout">
+              <section className="table-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Account intelligence</span>
+                    <h2>Facility profile</h2>
+                  </div>
+                </div>
+                <div className="form-grid" style={{ padding: 18 }}>
+                  <label>
+                    Contact person
+                    <input
+                      value={selected.contact_name || "Not recorded"}
+                      readOnly
+                    />
+                  </label>
+                  <label>
+                    Phone
+                    <input value={selected.phone || "Not recorded"} readOnly />
+                  </label>
+                  <label className="span-two">
+                    Email
+                    <input value={selected.email || "Not recorded"} readOnly />
+                  </label>
+                  <label>
+                    Region
+                    <input
+                      value={selected.region || selected.city || "Not recorded"}
+                      readOnly
+                    />
+                  </label>
+                  <label>
+                    District / council
+                    <input
+                      value={
+                        [selected.district, selected.council]
+                          .filter(Boolean)
+                          .join(" · ") || "Not recorded"
+                      }
+                      readOnly
+                    />
+                  </label>
+                  <label className="span-two">
+                    Equipment & service context
+                    <textarea
+                      rows={4}
+                      value={
+                        selected.equipment_summary ||
+                        selected.specialty ||
+                        "No equipment profile yet. Use discovery to identify departments, installed base, service gaps and procurement cycle."
+                      }
+                      readOnly
+                    />
+                  </label>
+                </div>
+                <div
+                  className="modal-actions"
+                  style={{ padding: "0 18px 18px" }}
+                >
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={!selected.email || busy}
+                    onClick={() => compose("email")}
+                  >
+                    {language === "sw" ? "Andaa barua pepe" : "Prepare email"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={!selected.phone || busy}
+                    onClick={() => compose("whatsapp")}
+                  >
+                    {language === "sw" ? "Fungua WhatsApp" : "Open WhatsApp"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button primary"
+                    disabled={!selected.phone || busy}
+                    onClick={call}
+                  >
+                    {language === "sw" ? "Piga simu" : "Call contact"}
+                  </button>
+                </div>
+              </section>
+              <section className="table-panel">
+                <div className="panel-heading">
+                  <div>
+                    <span className="section-kicker">Sales execution</span>
+                    <h2>Opportunity plan</h2>
+                  </div>
+                </div>
+                <form
+                  className="form-grid"
+                  style={{ padding: 18 }}
+                  onSubmit={savePlan}
+                >
+                  <label>
+                    Stage
+                    <select
+                      name="stage"
+                      defaultValue={selected.lead_status}
+                      disabled={!canAct}
+                    >
+                      <option value="new">New account</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="qualified">Qualified opportunity</option>
+                      <option value="proposal_sent">
+                        Proposal / quotation sent
+                      </option>
+                      <option value="not_a_fit">Disqualified</option>
+                    </select>
+                  </label>
+                  <label>
+                    Next action due
+                    <input
+                      name="next_action_at"
+                      type="datetime-local"
+                      defaultValue={
+                        selected.next_action_at
+                          ? new Date(selected.next_action_at)
+                              .toISOString()
+                              .slice(0, 16)
+                          : ""
+                      }
+                      disabled={!canAct}
+                    />
+                  </label>
+                  <label className="span-two">
+                    Account notes
+                    <textarea
+                      name="notes"
+                      rows={4}
+                      defaultValue={selected.notes || ""}
+                      placeholder="Procurement cycle, decision makers, equipment need, agreed next step…"
+                      disabled={!canAct}
+                    />
+                  </label>
+                  <div className="span-two modal-actions">
+                    <button
+                      className="button primary"
+                      disabled={!canAct || busy}
+                    >
+                      {busy ? "Saving…" : "Save opportunity plan"}
+                    </button>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={!canAct || busy}
+                      onClick={() =>
+                        void log(
+                          "note",
+                          "qualified",
+                          "qualified",
+                          "Discovery completed; account qualified for targeted proposal.",
+                        )
+                      }
+                    >
+                      Qualify opportunity
+                    </button>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      disabled={!canAct || busy}
+                      onClick={() =>
+                        void log(
+                          "email",
+                          "proposal_sent",
+                          "proposal_sent",
+                          "Commercial proposal / quotation issued.",
+                        )
+                      }
+                    >
+                      Mark proposal sent
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </div>
+            <section className="table-panel" style={{ marginTop: 14 }}>
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Engagement history</span>
+                  <h2>Account activity timeline</h2>
+                </div>
+                <span>{activities.length} actions</span>
+              </div>
+              {activities.length ? (
+                activities.map((a) => (
+                  <div className="ticket" key={a.id}>
+                    <span className="ticket-icon">
+                      <Icon
+                        name={
+                          a.channel === "email"
+                            ? "campaign"
+                            : a.channel === "phone"
+                              ? "service"
+                              : "customers"
+                        }
+                        size={18}
+                      />
+                    </span>
+                    <div>
+                      <b style={{ textTransform: "capitalize" }}>
+                        {a.outcome.replaceAll("_", " ")}
+                      </b>
+                      <strong>{a.subject || `${a.channel} engagement`}</strong>
+                      <p>{a.body || "No note added."}</p>
+                    </div>
+                    <div className="ticket-due">
+                      <small>
+                        {new Date(a.created_at).toLocaleDateString("en-TZ", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </small>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="auth-empty">
+                  <p>
+                    No activity has been recorded yet. Start with a discovery
+                    call, email or WhatsApp introduction.
+                  </p>
+                </div>
+              )}
+            </section>
+          </article>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function safeDocumentText(value: unknown) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      })[character] || character,
+  );
+}
+
+function QuotationRecordModal({
+  quotationId,
+  membership,
+  settings,
+  onClose,
+  onRefresh,
+  onToast,
+}: {
+  quotationId: string;
+  membership: Membership;
+  settings: BusinessSettings | null;
+  onClose: () => void;
+  onRefresh: () => Promise<void>;
+  onToast: (message: string) => void;
+}) {
+  const [detail, setDetail] = useState<QuotationDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("bank_transfer");
+  const [provider, setProvider] = useState("m_pesa");
+  const canWrite = ["owner", "admin", "sales"].includes(membership.role);
+  useEffect(() => {
+    let active = true;
+    void loadQuotationDetail(quotationId)
+      .then((record) => {
+        if (active) setDetail(record);
+      })
+      .catch((caught) => {
+        if (active)
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Quotation could not be loaded.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [quotationId]);
+  const setStatus = async (
+    status: "draft" | "sent" | "viewed" | "accepted" | "declined" | "expired",
+  ) => {
+    if (!detail || !canWrite) return;
+    setBusy(true);
+    setError("");
+    try {
+      await updateQuotationStatus(detail.id, status);
+      setDetail({ ...detail, status });
+      await onRefresh();
+      onToast(`${detail.quote_number} marked ${status.replaceAll("_", " ")}.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Quotation status could not be updated.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const share = (channel: "email" | "whatsapp") => {
+    if (!detail) return;
+    const subject = `AQAN Biomedical quotation ${detail.quote_number}`;
+    const body = `Hello ${detail.customer?.contact_name || detail.customer?.name || "there"},\n\nYour AQAN Biomedical quotation ${detail.quote_number} totals ${formatTzs(Number(detail.total))} and is valid until ${new Date(detail.valid_until).toLocaleDateString("en-TZ")}.\n\nPlease contact us if you need any clarification.`;
+    if (channel === "email") {
+      if (!detail.customer?.email) {
+        setError("This customer has no email address saved.");
+        return;
+      }
+      window.location.href = `mailto:${encodeURIComponent(detail.customer.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    } else {
+      const phone = whatsappPhone(detail.customer?.phone || null);
+      if (!phone) {
+        setError("This customer has no WhatsApp number saved.");
+        return;
+      }
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(body)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+    if (detail.status === "draft") void setStatus("sent");
+  };
+  const printQuotation = () => {
+    if (!detail) return;
+    const popup = window.open("", "_blank", "width=900,height=900");
+    if (!popup) {
+      setError("Allow pop-ups to print or save this quotation as PDF.");
+      return;
+    }
+    const itemRows = detail.items
+      .map(
+        (item) =>
+          `<tr><td>${safeDocumentText(item.description)}</td><td>${item.quantity}</td><td>${safeDocumentText(formatTzs(Number(item.unit_price)))}</td><td>${safeDocumentText(formatTzs(Number(item.line_total)))}</td></tr>`,
+      )
+      .join("");
+    popup.document.write(
+      `<!doctype html><html><head><title>${safeDocumentText(detail.quote_number)}</title><style>body{font-family:Arial,sans-serif;color:#16364d;padding:44px;line-height:1.5}header{display:flex;justify-content:space-between;border-bottom:3px solid #10a7df;padding-bottom:18px}h1{margin:0;font-size:25px}small{color:#688396}table{width:100%;border-collapse:collapse;margin:28px 0}th,td{text-align:left;padding:12px;border-bottom:1px solid #dce9ef}th{background:#eff9fd}.totals{margin-left:auto;width:330px}.totals div{display:flex;justify-content:space-between;padding:7px}.total{font-size:19px;font-weight:bold;border-top:2px solid #123b53}.terms{margin-top:34px;padding:20px;background:#f5fafc;border-radius:12px}.terms h3{margin:12px 0 4px;font-size:13px}.terms p{margin:0;color:#526d7d;font-size:12px}@media print{body{padding:12px}}</style></head><body><header><div><h1>${safeDocumentText(settings?.legal_name || "AQAN Biomedical Solutions")}</h1><small>${safeDocumentText(settings?.address || "Tanzania")} · ${safeDocumentText(settings?.phone || "")}</small></div><div><b>QUOTATION</b><br>${safeDocumentText(detail.quote_number)}<br><small>Valid until ${safeDocumentText(new Date(detail.valid_until).toLocaleDateString("en-TZ"))}</small></div></header><h2>${safeDocumentText(detail.customer?.name || "Healthcare customer")}</h2><small>${safeDocumentText([detail.customer?.contact_name, detail.customer?.phone, detail.customer?.email, detail.customer?.city].filter(Boolean).join(" · "))}</small><table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>${itemRows}</tbody></table><div class="totals"><div><span>Subtotal</span><b>${safeDocumentText(formatTzs(Number(detail.subtotal)))}</b></div><div><span>VAT</span><b>${safeDocumentText(formatTzs(Number(detail.vat_amount)))}</b></div><div class="total"><span>Total</span><b>${safeDocumentText(formatTzs(Number(detail.total)))}</b></div></div><div class="terms"><h3>Payment terms</h3><p>${safeDocumentText(detail.payment_terms || "As agreed in writing.")}</p><h3>Commercial terms</h3><p>${safeDocumentText(detail.quotation_terms || "Subject to availability and final confirmation.")}</p><h3>Bank details</h3><p>${safeDocumentText(detail.bank_details_snapshot || "Contact AQAN for payment instructions.")}</p>${detail.notes ? `<h3>Notes</h3><p>${safeDocumentText(detail.notes)}</p>` : ""}</div><script>window.onload=()=>window.print()</script></body></html>`,
+    );
+    popup.document.close();
+  };
+  const convertToInvoice = async () => {
+    if (!detail || !canWrite) return;
+    const items = detail.items
+      .filter((item): item is typeof item & { product_id: string } =>
+        Boolean(item.product_id),
+      )
+      .map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+      }));
+    if (items.length !== detail.items.length) {
+      setError(
+        "One quotation line is no longer linked to a live product and cannot be invoiced.",
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Convert ${detail.quote_number} into a paid invoice? Live stock will be deducted.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const sale = await completeSale({
+        customerId: detail.customer_id,
+        paymentMethod,
+        paymentProvider: paymentMethod === "mobile_money" ? provider : null,
+        customerName: detail.customer?.name || null,
+        customerPhone: detail.customer?.phone || null,
+        customerEmail: detail.customer?.email || null,
+        items,
+      });
+      await updateQuotationStatus(detail.id, "accepted");
+      await onRefresh();
+      onToast(
+        `Invoice ${sale.invoice_number} created from ${detail.quote_number}; payment and stock were recorded.`,
+      );
+      onClose();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Quotation could not be converted to an invoice.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <article
+        className="create-modal quotation-record"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quotation-record-title"
+      >
+        <button className="modal-close" onClick={onClose} aria-label="Close">
+          <Icon name="close" />
+        </button>
+        {loading ? (
+          <div className="auth-empty">
+            <span className="success-icon">
+              <Icon name="quote" size={28} />
+            </span>
+            <h2>Loading quotation</h2>
+            <p>Fetching live items, totals and commercial terms…</p>
+          </div>
+        ) : error && !detail ? (
+          <div className="auth-empty">
+            <h2>Quotation unavailable</h2>
+            <div className="form-error">{error}</div>
+          </div>
+        ) : detail ? (
+          <>
+            <span className="section-kicker">Commercial document</span>
+            <h2 id="quotation-record-title">{detail.quote_number}</h2>
+            <p>
+              {detail.customer?.name || "Healthcare customer"} · valid until{" "}
+              {new Date(detail.valid_until).toLocaleDateString("en-TZ")}
+            </p>
+            <section className="summary-strip" style={{ margin: "18px 0" }}>
+              <div>
+                <span>Status</span>
+                <strong style={{ fontSize: 16, textTransform: "capitalize" }}>
+                  {detail.status}
+                </strong>
+                <small>live pipeline state</small>
+              </div>
+              <div>
+                <span>Subtotal</span>
+                <strong style={{ fontSize: 16 }}>
+                  {formatTzs(Number(detail.subtotal))}
+                </strong>
+                <small>before VAT</small>
+              </div>
+              <div>
+                <span>VAT</span>
+                <strong style={{ fontSize: 16 }}>
+                  {formatTzs(Number(detail.vat_amount))}
+                </strong>
+                <small>saved tax snapshot</small>
+              </div>
+              <div>
+                <span>Grand total</span>
+                <strong style={{ fontSize: 16 }}>
+                  {formatTzs(Number(detail.total))}
+                </strong>
+                <small>{detail.items.length} line items</small>
+              </div>
+            </section>
+            <div className="quote-line-list">
+              <div className="quote-line quote-line-head">
+                <span>Equipment / service</span>
+                <span>Qty</span>
+                <span>Unit price</span>
+                <span>Total</span>
+              </div>
+              {detail.items.map((item) => (
+                <div className="quote-line" key={item.id}>
+                  <strong>{item.description}</strong>
+                  <span>{item.quantity}</span>
+                  <span>{formatTzs(Number(item.unit_price))}</span>
+                  <b>{formatTzs(Number(item.line_total))}</b>
+                </div>
+              ))}
+            </div>
+            <section className="quote-terms">
+              <div>
+                <span>Payment terms</span>
+                <p>{detail.payment_terms || "Not configured"}</p>
+              </div>
+              <div>
+                <span>Commercial terms</span>
+                <p>{detail.quotation_terms || "Not configured"}</p>
+              </div>
+              <div>
+                <span>Delivery terms</span>
+                <p>{detail.delivery_terms || "Not configured"}</p>
+              </div>
+              <div>
+                <span>Bank instructions</span>
+                <p>
+                  {detail.bank_details_snapshot ||
+                    "Not configured in Business settings"}
+                </p>
+              </div>
+            </section>
+            {error ? <div className="form-error">{error}</div> : null}
+            <div className="quote-actions">
+              <button className="button secondary" onClick={printQuotation}>
+                Print / save PDF
+              </button>
+              <button
+                className="button secondary"
+                onClick={() => share("email")}
+              >
+                Email customer
+              </button>
+              <button
+                className="button secondary"
+                onClick={() => share("whatsapp")}
+              >
+                WhatsApp
+              </button>
+              {canWrite ? (
+                <select
+                  value={detail.status}
+                  disabled={busy}
+                  onChange={(event) =>
+                    void setStatus(
+                      event.target.value as
+                        | "draft"
+                        | "sent"
+                        | "viewed"
+                        | "accepted"
+                        | "declined"
+                        | "expired",
+                    )
+                  }
+                  aria-label="Quotation status"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="sent">Sent</option>
+                  <option value="viewed">Viewed</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="declined">Declined</option>
+                  <option value="expired">Expired</option>
+                </select>
+              ) : null}
+            </div>
+            {canWrite ? (
+              <section className="quote-convert">
+                <div>
+                  <span className="section-kicker">Close the sale</span>
+                  <h3>Convert quotation to invoice</h3>
+                  <p>
+                    AQAN revalidates live stock, records the payment method and
+                    creates the invoice atomically.
+                  </p>
+                </div>
+                <div>
+                  <select
+                    value={paymentMethod}
+                    onChange={(event) => setPaymentMethod(event.target.value)}
+                    aria-label="Payment method"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="mobile_money">Mobile money</option>
+                    <option value="bank_transfer">Bank transfer</option>
+                    <option value="credit">Credit sale</option>
+                  </select>
+                  {paymentMethod === "mobile_money" ? (
+                    <select
+                      value={provider}
+                      onChange={(event) => setProvider(event.target.value)}
+                      aria-label="Mobile provider"
+                    >
+                      <option value="m_pesa">M-Pesa</option>
+                      <option value="airtel_money">Airtel Money</option>
+                      <option value="tigo_pesa">Tigo Pesa</option>
+                      <option value="halopesa">HaloPesa</option>
+                      <option value="mixx_by_yas">Mixx by Yas</option>
+                    </select>
+                  ) : null}
+                  <button
+                    className="button primary"
+                    disabled={busy || !detail.items.length}
+                    onClick={() => void convertToInvoice()}
+                  >
+                    {busy ? "Creating invoice…" : "Create invoice"}
+                  </button>
+                </div>
+              </section>
+            ) : null}
+          </>
+        ) : null}
+      </article>
+    </div>
+  );
+}
+
+function QuotesView({ data, membership, onToast, onAdd, onRefresh }: { data: AqanData; membership: Membership; onToast: (message: string) => void; onAdd: () => void; onRefresh: () => Promise<void> }) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const rows = data.quotations.filter((quote) => (filter === "all" || quote.status === filter) && `${quote.quote_number} ${quote.customer?.name || ""}`.toLowerCase().includes(query.toLowerCase()));
+  const draftCount = data.quotations.filter((quote) => quote.status === "draft").length;
+  const acceptedCount = data.quotations.filter((quote) => quote.status === "accepted").length;
+  const conversion = data.quotations.length ? Math.round((acceptedCount / data.quotations.length) * 100) : 0;
+  return <div className="workspace-page"><WorkspaceHeader kicker="Sales pipeline" title="Quotations" description="Create complete offers, share them, follow engagement and convert accepted quotes into paid invoices." action="New quotation" onAction={onAdd}/><section className="quote-stats"><div><span>Draft</span><strong>{draftCount}</strong><small>Being prepared</small></div><div><span>Sent & viewed</span><strong>{data.quotations.filter((quote) => ["sent", "viewed"].includes(quote.status)).length}</strong><small>Awaiting decision</small></div><div><span>Accepted</span><strong>{acceptedCount}</strong><small>Won opportunities</small></div><div className="conversion"><span>Conversion rate</span><strong>{conversion}%</strong><small>Live close rate</small></div></section><section className="table-panel"><div className="table-tools"><label><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search quotation or customer"/></label><div className="filter-row">{[["all","All"],["draft","Draft"],["sent","Sent"],["accepted","Accepted"]].map(([value,label]) => <button key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>{label}</button>)}</div></div><div className="data-table quotes-table"><div className="table-head"><span>Quotation</span><span>Customer</span><span>Amount</span><span>Created</span><span>Status</span><span>Owner</span><span/></div>{rows.map((quote) => <div className="table-row" key={quote.id} onClick={() => setSelectedId(quote.id)} style={{cursor:"pointer"}}><span><b>{quote.quote_number}</b></span><span><b>{quote.customer?.name ?? "Healthcare customer"}</b></span><span>{formatTzs(Number(quote.total))}</span><span>{new Date(quote.created_at).toLocaleDateString("en-TZ", {day:"numeric",month:"short"})}</span><span><em className={`pill ${quote.status.replaceAll("_","-")}`}>{quote.status.replaceAll("_"," ")}</em></span><span className="owner-badge">AQ</span><button onClick={(event) => { event.stopPropagation(); setSelectedId(quote.id); }} aria-label={`Open ${quote.quote_number}`}><Icon name="arrow" size={17}/></button></div>)}</div>{!rows.length ? <div className="auth-empty"><p>No quotations match this view.</p></div> : null}</section>{selectedId ? <QuotationRecordModal quotationId={selectedId} membership={membership} settings={data.settings} onClose={() => setSelectedId(null)} onRefresh={onRefresh} onToast={onToast}/> : null}</div>;
+}
+
+function ServiceView({ requests, onToast, onAdd }: { requests: AqanData["serviceRequests"]; onToast: (message: string) => void; onAdd: () => void }) {
+  const tickets = requests.length ? requests.map((request) => ({
+    id: request.request_number,
+    customer: request.customer?.name ?? "Healthcare customer",
+    device: `${request.equipment_name}${request.serial_number ? ` · SN ${request.serial_number}` : ""}`,
+    issue: request.issue,
+    due: request.scheduled_for ? new Date(request.scheduled_for).toLocaleString("en-TZ", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "Not scheduled",
+    level: request.priority === "urgent" ? "Urgent" : request.status === "in_progress" ? "In progress" : "Scheduled",
+  })) : [];
+  if (!tickets.length) return <div className="workspace-page"><WorkspaceHeader kicker="After-sales care" title="Service & warranty" description="Schedule installations, preventive maintenance and warranty visits from live customer records." action="Schedule visit" onAction={onAdd}/><section className="table-panel"><div className="auth-empty"><span className="success-icon"><Icon name="service" size={28}/></span><h2>No service requests yet</h2><p>Create the first customer and schedule their equipment visit here.</p></div></section></div>;
+  return <div className="workspace-page"><WorkspaceHeader kicker="After-sales care" title="Service & warranty" description="Protect every serialised device from installation through its full service life." action="Schedule visit" onAction={onAdd}/>
+    <section className="service-summary"><div className="service-hero"><span><Icon name="shield" size={23}/></span><div><small>Equipment protected</small><strong>1,284 serialised devices</strong><p>94.7% have active warranty or service coverage.</p></div><button onClick={() => onToast("Warranty coverage report generated.")}>Coverage report</button></div><div className="service-mini"><span>Due this week</span><strong>12</strong><small>Maintenance visits</small></div><div className="service-mini"><span>Open requests</span><strong>3</strong><small>1 urgent</small></div></section>
+    <section className="service-layout"><article className="table-panel service-tickets"><div className="panel-heading"><div><span className="section-kicker">Service desk</span><h2>Active requests</h2></div><button>View history</button></div>{tickets.map((t) => <div className="ticket" key={t.id}><span className="ticket-icon"><Icon name="service" size={19}/></span><div><div><b>{t.id}</b><em className={`pill ${t.level.toLowerCase().replace(" ", "-")}`}>{t.level}</em></div><strong>{t.customer}</strong><p>{t.device}</p><small>{t.issue}</small></div><div className="ticket-due"><small>Visit due</small><b>{t.due}</b><button onClick={() => onToast(`${t.id} assigned to the service team.`)}>Manage <Icon name="arrow" size={14}/></button></div></div>)}</article>
+      <aside className="panel warranty-panel"><div className="panel-heading"><div><span className="section-kicker">Upcoming</span><h2>Warranty expiries</h2></div></div><div><span className="date-box"><b>28</b><small>AUG</small></span><p><strong>3 × ECG Machine E6</strong><small>Tumaini Regional Clinic</small></p><em>4 days</em></div><div><span className="date-box"><b>02</b><small>SEP</small></span><p><strong>Patient Monitor X12</strong><small>Kairuki Hospital</small></p><em>9 days</em></div><div><span className="date-box"><b>08</b><small>SEP</small></span><p><strong>Oxygen Concentrator 10L</strong><small>Upendo Health Centre</small></p><em>15 days</em></div><button className="renew-button" onClick={() => onToast("Renewal messages prepared for 5 customers.")}><Icon name="campaign" size={16}/> Prepare renewal outreach</button></aside>
+    </section>
+  </div>;
+}
+
+function CampaignsView({ campaigns, onToast, onAdd }: { campaigns: AqanData["campaigns"]; onToast: (message: string) => void; onAdd: () => void }) {
+  const [launched, setLaunched] = useState(false);
+  const launchDraft = () => { setLaunched(true); onAdd(); };
+  if (!campaigns.length) return <div className="workspace-page"><WorkspaceHeader kicker="Customer growth" title="Campaigns" description="Prepare consent-aware outreach when new products arrive or customers need service." action="New campaign" onAction={onAdd}/><section className="table-panel"><div className="auth-empty"><span className="success-icon"><Icon name="campaign" size={28}/></span><h2>No campaigns yet</h2><p>Create a live campaign once the client has products and customer contacts.</p></div></section></div>;
+  return <div className="workspace-page"><WorkspaceHeader kicker="Customer growth" title="Campaigns" description="Reach the right healthcare buyers when products arrive, warranties expire or demand changes." action="New campaign" onAction={onAdd}/>
+    <section className="campaign-hero"><div className="campaign-product"><span><Icon name="inventory" size={28}/></span><div><small>NEW ARRIVAL OPPORTUNITY</small><h2>Portable Ultrasound U8</h2><p>AQAN AI matched this shipment to customers most likely to purchase.</p></div></div><div className="match-ring"><span><b>27</b><small>matched<br/>customers</small></span></div><div className="reach-preview"><div><span>18</span><small>Private clinics</small></div><div><span>6</span><small>Hospitals</small></div><div><span>3</span><small>Diagnostics</small></div></div><button className={launched ? "launched" : ""} onClick={launchDraft}><Icon name={launched ? "check" : "campaign"} size={18}/>{launched ? "Campaign drafted" : "Review & prepare"}</button></section>
+    <section className="campaign-grid"><article className="panel campaign-list"><div className="panel-heading"><div><span className="section-kicker">Active & recent</span><h2>Campaign performance</h2></div><button>View all</button></div><div className="campaign-row"><span className="campaign-channel whatsapp">WA</span><div><strong>Monitor accessories restock</strong><p>42 WhatsApp recipients · Sent 22 Aug</p></div><span><b>76%</b><small>read</small></span><span><b>9</b><small>replies</small></span><em className="pill success">Active</em></div><div className="campaign-row"><span className="campaign-channel email">@</span><div><strong>Annual service renewal</strong><p>31 email recipients · Sent 18 Aug</p></div><span><b>61%</b><small>opened</small></span><span><b>6</b><small>renewed</small></span><em className="pill viewed">Completed</em></div><div className="campaign-row"><span className="campaign-channel mixed">↗</span><div><strong>Oxygen concentrator offer</strong><p>68 multi-channel recipients · Sent 11 Aug</p></div><span><b>54%</b><small>engaged</small></span><span><b>4</b><small>sales</small></span><em className="pill viewed">Completed</em></div></article>
+      <aside className="panel message-preview"><span className="section-kicker">Personalized preview</span><h2>How your customer sees it</h2><div className="phone-message"><span className="message-logo">A</span><p>Habari <b>Dr. Asha</b>,</p><p>Our new <b>Portable Ultrasound U8</b> has arrived. Based on your recent imaging enquiry, we reserved an early demonstration slot for Kijiji Clinic.</p><p className="message-cta">View product & request demo →</p><small>Reply STOP to opt out</small></div><button onClick={() => onToast(`${campaigns.length || 3} campaign records are available. Provider delivery activates when WhatsApp/email credentials are added.`)}>Delivery readiness</button></aside>
+    </section>
+  </div>;
+}
+
+function SettingsLegacy({ settings, membership, onToast, onRefresh }: { settings: BusinessSettings | null; membership: Membership; onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const canEdit = ["owner", "admin"].includes(membership.role);
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); if (!canEdit) return;
+    const form = new FormData(event.currentTarget); const value = (name: string) => String(form.get(name) || "").trim();
+    setBusy(true); try {
+      await saveBusinessSettings({ legal_name: value("legal_name") || "AQAN Biomedical", address: value("address") || null, phone: value("phone") || null, email: value("email") || null, tin: value("tin") || null, vrn: value("vrn") || null, bank_name: value("bank_name") || null, bank_account_name: value("bank_account_name") || null, bank_account_number: value("bank_account_number") || null, bank_branch: value("bank_branch") || null, payment_terms: value("payment_terms"), quotation_terms: value("quotation_terms"), delivery_terms: value("delivery_terms"), invoice_footer: value("invoice_footer") || null, vat_rate: Number(value("vat_rate") || 18) }, membership.organization_id);
+      await onRefresh(); onToast("Business settings saved. New quotations inherit these terms and bank details.");
+    } catch (caught) { onToast(caught instanceof Error ? caught.message : "Settings could not be saved."); } finally { setBusy(false); }
+  };
+  return <div className="workspace-page"><WorkspaceHeader kicker="Administration" title="Business settings" description="Control company identity, statutory details, banking instructions and default commercial terms." action={canEdit ? "Save settings" : "View only"} onAction={() => document.getElementById("aqan-settings-form")?.requestSubmit()}/><form id="aqan-settings-form" className="table-panel" onSubmit={submit}><div className="form-grid" style={{padding:20}}><label>Legal business name<input name="legal_name" disabled={!canEdit} defaultValue={settings?.legal_name || "AQAN Biomedical"}/></label><label>VAT rate (%)<input name="vat_rate" type="number" min="0" max="100" disabled={!canEdit} defaultValue={settings?.vat_rate ?? 18}/></label><label>Phone<input name="phone" disabled={!canEdit} defaultValue={settings?.phone || ""}/></label><label>Email<input name="email" type="email" disabled={!canEdit} defaultValue={settings?.email || ""}/></label><label>TIN<input name="tin" disabled={!canEdit} defaultValue={settings?.tin || ""}/></label><label>VRN<input name="vrn" disabled={!canEdit} defaultValue={settings?.vrn || ""}/></label><label className="span-two">Business address<textarea name="address" disabled={!canEdit} rows={2} defaultValue={settings?.address || ""}/></label><label>Bank name<input name="bank_name" disabled={!canEdit} defaultValue={settings?.bank_name || ""}/></label><label>Account name<input name="bank_account_name" disabled={!canEdit} defaultValue={settings?.bank_account_name || ""}/></label><label>Account number<input name="bank_account_number" disabled={!canEdit} defaultValue={settings?.bank_account_number || ""}/></label><label>Bank branch<input name="bank_branch" disabled={!canEdit} defaultValue={settings?.bank_branch || ""}/></label><label className="span-two">Payment terms<textarea name="payment_terms" disabled={!canEdit} rows={3} defaultValue={settings?.payment_terms || "Payment is due within 14 days of invoice date unless otherwise agreed in writing."}/></label><label className="span-two">Quotation terms & conditions<textarea name="quotation_terms" disabled={!canEdit} rows={5} defaultValue={settings?.quotation_terms || "Prices are in Tanzanian shillings and exclude delivery unless stated. Availability is subject to prior sale."}/></label><label className="span-two">Delivery terms & receiver acknowledgement<textarea name="delivery_terms" disabled={!canEdit} rows={4} defaultValue={settings?.delivery_terms || "Please inspect goods on delivery. Signing confirms receipt of the listed items in good order, subject to any written exceptions."}/></label><label className="span-two">Invoice / document footer<textarea name="invoice_footer" disabled={!canEdit} rows={2} defaultValue={settings?.invoice_footer || ""}/></label></div><div className="modal-actions" style={{padding:"0 20px 20px"}}><button className="button primary" disabled={!canEdit || busy}>{busy ? "Saving…" : "Save commercial settings"}</button></div></form></div>;
+}
+
+function SettingsBrandingLegacy({ settings, membership, onToast, onRefresh }: { settings: BusinessSettings | null; membership: Membership; onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false); const canEdit = ["owner", "admin"].includes(membership.role);
+  const upload = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file || !canEdit) return; setBusy(true); try { await uploadBrandLogo(membership.organization_id, file); await onRefresh(); onToast("Logo saved. It will appear on generated invoice and quotation templates."); } catch (caught) { onToast(caught instanceof Error ? caught.message : "Logo upload failed."); } finally { setBusy(false); } };
+  return <><div className="workspace-page"><WorkspaceHeader kicker="Brand & documents" title="Invoice and quotation templates" description="Use your own logo and choose the document treatment clients receive." action={canEdit ? "Upload logo" : "View only"} onAction={() => document.getElementById("aqan-logo-upload")?.click()}/><section className="service-layout"><article className="table-panel"><div className="panel-heading"><div><span className="section-kicker">Company identity</span><h2>Logo & commercial templates</h2></div></div><div className="form-grid" style={{padding:18}}><label className="span-two">Company logo<input id="aqan-logo-upload" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={upload} disabled={!canEdit || busy}/></label><div className="span-two" style={{display:"flex",alignItems:"center",gap:14,padding:"10px 0"}}>{brandLogoUrl(settings?.logo_path) ? <img src={brandLogoUrl(settings?.logo_path)!} alt="AQAN company logo" style={{width:72,height:72,objectFit:"contain",borderRadius:12,border:"1px solid #dce8ee",padding:6}}/> : <span className="success-icon" style={{margin:0}}><Icon name="quote" size={24}/></span>}<div><b>{settings?.logo_path ? "Brand logo active" : "No logo uploaded"}</b><small style={{display:"block",marginTop:4}}>PNG, JPG, WebP or SVG · 2MB maximum. Classic, modern and compact layouts are ready for the next printable-document release.</small></div></div></div></article><article className="table-panel"><div className="panel-heading"><div><span className="section-kicker">Document controls</span><h2>What every quote includes</h2></div></div><div className="ticket"><span className="ticket-icon"><Icon name="quote" size={19}/></span><div><b>Quotation</b><strong>Terms, payment schedule, bank details, VAT and validity</strong><p>Commercial details pull from Business settings and are locked into each quote.</p></div></div><div className="ticket"><span className="ticket-icon"><Icon name="sale" size={19}/></span><div><b>Invoice & receipt</b><strong>Buyer, mobile-money method, tax details and settlement reference</strong><p>Payment method is recorded; no payment gateway is invoked.</p></div></div><div className="ticket"><span className="ticket-icon"><Icon name="service" size={19}/></span><div><b>Delivery & gate</b><strong>Item list, named receiver, signature acknowledgement and vehicle control</strong><p>All are linked to secured operational records.</p></div></div></article></section></div><SettingsLegacy settings={settings} membership={membership} onToast={onToast} onRefresh={onRefresh}/></>;
+}
+
+function PersonalSettings({ session, language, theme, onLanguageChange, onThemeChange, onToast }: { session: Session; language: AqanLanguage; theme: AqanTheme; onLanguageChange: (language: AqanLanguage) => void; onThemeChange: (theme: AqanTheme) => void; onToast: (message: string) => void }) {
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const profile = session.user.user_metadata || {};
+  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); setBusy(true); setError(""); try { await updateMyProfile({ fullName: String(form.get("full_name") || ""), phone: String(form.get("phone") || ""), language, theme }); onToast("Personal settings saved across your AQAN account."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Personal settings could not be saved."); } finally { setBusy(false); } };
+  const savePassword = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const password = String(new FormData(event.currentTarget).get("password") || ""); if (password.length < 8) { setError("Choose a password with at least 8 characters."); return; } setBusy(true); setError(""); try { await updateMyPassword(password); event.currentTarget.reset(); onToast("Your AQAN password has been updated."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Password could not be updated."); } finally { setBusy(false); } };
+  return <div className="workspace-page"><WorkspaceHeader kicker="Personal workspace" title="My account & preferences" description="Choose your display language, appearance, account identity and sign-in security." action="Save profile" onAction={() => document.getElementById("aqan-personal-settings")?.requestSubmit()}/><section className="settings-grid"><form id="aqan-personal-settings" className="table-panel" onSubmit={saveProfile}><div className="panel-heading"><div><span className="section-kicker">Identity</span><h2>Profile</h2></div><span className="pill success">Secure account</span></div><div className="form-grid" style={{padding:20}}><label>Full name<input name="full_name" required defaultValue={String(profile.full_name || "")}/></label><label>Work email<input value={session.user.email || ""} readOnly aria-readonly="true"/></label><label className="span-two">Phone number<input name="phone" type="tel" defaultValue={String(profile.phone || "")} placeholder="+255 …"/></label><label className="span-two">Display language<select value={language} onChange={(event) => onLanguageChange(event.target.value as AqanLanguage)}><option value="en">🇬🇧 English</option><option value="sw">🇹🇿 Kiswahili</option></select></label><div className="span-two"><span className="settings-label">Appearance</span><div className="theme-options">{(["light", "dark", "system"] as AqanTheme[]).map((item) => <button key={item} type="button" className={theme === item ? "selected" : ""} onClick={() => onThemeChange(item)}><b>{item === "light" ? "☀️" : item === "dark" ? "🌙" : "◐"}</b><span>{item === "light" ? "Light" : item === "dark" ? "Dark" : "System"}</span></button>)}</div></div></div><div className="modal-actions" style={{padding:"0 20px 20px"}}><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save personal settings"}</button></div></form><section className="table-panel security-panel"><div className="panel-heading"><div><span className="section-kicker">Account security</span><h2>Update password</h2></div></div><p>Use a strong password unique to AQAN. You can change it at any time without losing your workspace access.</p><form className="form-grid" onSubmit={savePassword}><label className="span-two">New password<input name="password" type="password" minLength={8} required autoComplete="new-password" placeholder="At least 8 characters"/></label><div className="span-two modal-actions"><button className="button secondary" disabled={busy}>{busy ? "Updating…" : "Update password"}</button></div></form><div className="settings-security-note"><Icon name="shield" size={18}/><span>Permissions are enforced by AQAN’s Supabase row-level security, not by the interface alone.</span></div></section></section>{error ? <div className="form-error">{error}</div> : null}</div>;
+}
+
+function SettingsView({ settings, membership, session, language, theme, onLanguageChange, onThemeChange, onToast, onRefresh }: { settings: BusinessSettings | null; membership: Membership; session: Session; language: AqanLanguage; theme: AqanTheme; onLanguageChange: (language: AqanLanguage) => void; onThemeChange: (theme: AqanTheme) => void; onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false); const canEdit = ["owner", "admin"].includes(membership.role);
+  const saveLayout = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!canEdit) return; const form = new FormData(event.currentTarget); setBusy(true); try { await updateDocumentDesign(membership.organization_id, String(form.get("layout")) as "classic" | "modern" | "compact", String(form.get("accent") || "#14a7a0")); await onRefresh(); onToast("Document template selected for invoices and quotations."); } catch (caught) { onToast(caught instanceof Error ? caught.message : "Template could not be saved."); } finally { setBusy(false); } };
+  return <><PersonalSettings session={session} language={language} theme={theme} onLanguageChange={onLanguageChange} onThemeChange={onThemeChange} onToast={onToast}/><div className="workspace-page"><section className="settings-grid"><section className="table-panel"><div className="panel-heading"><div><span className="section-kicker">Template studio</span><h2>Document appearance</h2></div></div><form className="form-grid" style={{padding:20}} onSubmit={saveLayout}><label>Invoice & quotation layout<select name="layout" defaultValue={settings?.document_layout || "modern"} disabled={!canEdit}><option value="classic">Classic — formal healthcare supplier</option><option value="modern">Modern — spacious and brand-led</option><option value="compact">Compact — efficient A4 / thermal friendly</option></select></label><label>Brand accent<input name="accent" type="color" defaultValue={settings?.quotation_accent || "#14a7a0"} disabled={!canEdit}/></label><div className="span-two modal-actions"><button className="button primary" disabled={!canEdit || busy}>{busy ? "Saving…" : "Apply document appearance"}</button></div></form></section><section className="table-panel settings-shortcuts"><span className="section-kicker">Business controls</span><h2>What owners can manage</h2><div><b>Company profile</b><span>Legal details, TIN, VRN and address</span></div><div><b>Commercial terms</b><span>Bank accounts, VAT, quotation & delivery conditions</span></div><div><b>Branding</b><span>Official logo and document styling</span></div></section></section></div><SettingsBrandingLegacy settings={settings} membership={membership} onToast={onToast} onRefresh={onRefresh}/></>;
+}
+
+function LogisticsLegacy({ data, membership, onToast, onRefresh }: { data: AqanData; membership: Membership; onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false); const canWrite = ["owner","admin","sales","service"].includes(membership.role);
+  const createNote = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=new FormData(event.currentTarget); setBusy(true); try { await createDeliveryNote({saleId:String(form.get("sale_id")),recipientName:String(form.get("recipient_name")),recipientPhone:String(form.get("recipient_phone")||""),deliveryAddress:String(form.get("delivery_address")||""),driverName:String(form.get("driver_name")||""),vehicleNumber:String(form.get("vehicle_number")||""),notes:String(form.get("notes")||"")}); event.currentTarget.reset(); await onRefresh(); onToast("Delivery note created with copied sale items."); } catch(caught) { onToast(caught instanceof Error?caught.message:"Delivery note could not be created."); } finally {setBusy(false);} };
+  const createPass = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=new FormData(event.currentTarget); setBusy(true); try { await createGatePass({organizationId:membership.organization_id,vehicleNumber:String(form.get("vehicle_number")),driverName:String(form.get("driver_name")),driverPhone:String(form.get("driver_phone")||""),purpose:String(form.get("purpose")),notes:String(form.get("notes")||""),deliveryNoteId:String(form.get("delivery_note_id")||"")||null}); event.currentTarget.reset(); await onRefresh(); onToast("Gate pass recorded and ready for security."); } catch(caught) { onToast(caught instanceof Error?caught.message:"Gate pass could not be created."); } finally {setBusy(false);} };
+  const received = async (noteId:string,event:React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=new FormData(event.currentTarget); setBusy(true); try { await confirmDelivery(noteId,String(form.get("received_by")),String(form.get("signature"))); await onRefresh(); onToast("Delivery receipt and receiver signature saved."); } catch(caught) { onToast(caught instanceof Error?caught.message:"Receipt could not be saved."); } finally {setBusy(false);} };
+  return <div className="workspace-page"><WorkspaceHeader kicker="Fulfilment control" title="Dispatch, delivery & gate" description="Create delivery notes from paid sales, capture a named recipient and signature, then control vehicle movements." action="Refresh" onAction={() => void onRefresh()}/><section className="service-layout"><form className="table-panel" onSubmit={createNote}><div className="panel-heading" style={{padding:18}}><div><span className="section-kicker">Dispatch</span><h2>Create delivery note</h2></div></div><div className="form-grid" style={{padding:18}}><label className="span-two">Completed sale<select name="sale_id" required disabled={!canWrite}><option value="">Select an invoice</option>{data.sales.map((sale)=><option value={sale.id} key={sale.id}>{sale.invoice_number} · {formatTzs(Number(sale.total))}</option>)}</select></label><label>Receiver full name<input name="recipient_name" required disabled={!canWrite}/></label><label>Receiver phone<input name="recipient_phone" disabled={!canWrite}/></label><label>Driver name<input name="driver_name" disabled={!canWrite}/></label><label>Vehicle number<input name="vehicle_number" disabled={!canWrite}/></label><label className="span-two">Delivery address<textarea name="delivery_address" rows={2} disabled={!canWrite}/></label><label className="span-two">Dispatch notes<textarea name="notes" rows={2} disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite || busy || !data.sales.length}>{busy?"Creating…":"Create delivery note"}</button></div></form><form className="table-panel" onSubmit={createPass}><div className="panel-heading" style={{padding:18}}><div><span className="section-kicker">Security</span><h2>Gate / parking slip</h2></div></div><div className="form-grid" style={{padding:18}}><label>Vehicle number<input name="vehicle_number" required disabled={!canWrite}/></label><label>Driver name<input name="driver_name" required disabled={!canWrite}/></label><label>Driver phone<input name="driver_phone" disabled={!canWrite}/></label><label>Purpose<input name="purpose" required placeholder="Delivery / collection / visitor" disabled={!canWrite}/></label><label className="span-two">Link delivery note<select name="delivery_note_id" disabled={!canWrite}><option value="">Optional</option>{data.deliveryNotes.map((note)=><option value={note.id} key={note.id}>{note.delivery_number}</option>)}</select></label><label className="span-two">Security notes<textarea name="notes" rows={2} disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite || busy}>{busy?"Saving…":"Issue gate pass"}</button></div></form></section><section className="table-panel" style={{marginTop:14}}><div className="panel-heading" style={{padding:18}}><div><span className="section-kicker">Proof of delivery</span><h2>Delivery notes</h2></div><span>{data.deliveryNotes.length} records</span></div>{data.deliveryNotes.map((note)=><div className="ticket" key={note.id}><span className="ticket-icon"><Icon name="service" size={19}/></span><div><b>{note.delivery_number}</b><strong>{note.recipient_name}</strong><p>{note.vehicle_number || "Vehicle pending"} · {note.status.replaceAll("_"," ")}</p><small>{note.delivery_address || "Address pending"}</small></div>{note.status === "delivered" ? <div className="ticket-due"><small>Received by</small><b>{note.received_by_name}</b></div> : <form className="ticket-due" onSubmit={(event)=>void received(note.id,event)}><input name="received_by" required placeholder="Receiver name"/><input name="signature" required placeholder="Signature / ID"/><button className="button primary" disabled={!canWrite || busy}>Confirm receipt</button></form>}</div>)}{!data.deliveryNotes.length?<div className="auth-empty"><p>No delivery notes yet. Record a POS sale first, then dispatch it here.</p></div>:null}</section></div>;
+}
+
+function LogisticsCore({ data, membership, onToast, onRefresh }: { data: AqanData; membership: Membership; onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false); const canWrite = ["owner", "admin", "sales"].includes(membership.role);
+  const submit = async (kind: "supplier" | "warehouse" | "po" | "cash", event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!canWrite) return; const f = new FormData(event.currentTarget); const v=(n:string)=>String(f.get(n)||"").trim(); setBusy(true); try { if(kind==="supplier") await createSupplier({organizationId:membership.organization_id,name:v("name"),contactName:v("contact_name"),phone:v("phone"),email:v("email"),paymentTerms:v("payment_terms")}); if(kind==="warehouse") await createWarehouse({organizationId:membership.organization_id,name:v("name"),code:v("code").toUpperCase(),address:v("address"),managerName:v("manager_name")}); if(kind==="po") await createPurchaseOrder({organizationId:membership.organization_id,supplierId:v("supplier_id"),warehouseId:v("warehouse_id"),expectedOn:v("expected_on"),notes:v("notes")}); if(kind==="cash") await openCashSession({organizationId:membership.organization_id,openingFloat:Number(v("opening_float")||0),notes:v("notes")}); event.currentTarget.reset(); await onRefresh(); onToast(`${kind === "po" ? "Purchase order" : kind === "cash" ? "Cash session" : kind === "supplier" ? "Supplier" : "Warehouse"} created.`); } catch(caught) { onToast(caught instanceof Error ? caught.message : "Record could not be saved."); } finally { setBusy(false); } };
+  return <><div className="workspace-page"><WorkspaceHeader kicker="Procurement & financial control" title="Supply chain operations" description="Manage suppliers, controlled purchasing, locations and cash accountability from the same secured workspace." action="Refresh operations" onAction={() => void onRefresh()}/><section className="summary-strip"><div><span>Suppliers</span><strong>{data.suppliers.length}</strong><small>approved supply base</small></div><div><span>Warehouses</span><strong>{data.warehouses.length}</strong><small>stock locations</small></div><div><span>Purchase orders</span><strong>{data.purchaseOrders.length}</strong><small>controlled procurement</small></div><div><span>Cash sessions</span><strong>{data.cashSessions.filter(s=>s.status==="open").length}</strong><small>currently open</small></div></section><section className="service-layout"><form className="table-panel" onSubmit={e=>void submit("supplier",e)}><div className="panel-heading"><div><span className="section-kicker">Supply base</span><h2>Add supplier</h2></div></div><div className="form-grid" style={{padding:18}}><label>Supplier name<input name="name" required disabled={!canWrite}/></label><label>Contact person<input name="contact_name" disabled={!canWrite}/></label><label>Phone<input name="phone" disabled={!canWrite}/></label><label>Email<input name="email" type="email" disabled={!canWrite}/></label><label className="span-two">Payment terms<input name="payment_terms" placeholder="e.g. 30 days after delivery" disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite || busy}>Add supplier</button></div></form><form className="table-panel" onSubmit={e=>void submit("warehouse",e)}><div className="panel-heading"><div><span className="section-kicker">Stock locations</span><h2>Add warehouse</h2></div></div><div className="form-grid" style={{padding:18}}><label>Warehouse name<input name="name" required disabled={!canWrite}/></label><label>Short code<input name="code" required maxLength={12} placeholder="DAR-MAIN" disabled={!canWrite}/></label><label>Manager<input name="manager_name" disabled={!canWrite}/></label><label>Address<input name="address" disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite || busy}>Create warehouse</button></div></form></section><section className="service-layout" style={{marginTop:14}}><form className="table-panel" onSubmit={e=>void submit("po",e)}><div className="panel-heading"><div><span className="section-kicker">Procurement approvals</span><h2>Raise purchase order</h2></div></div><div className="form-grid" style={{padding:18}}><label>Supplier<select name="supplier_id" required disabled={!canWrite}><option value="">Select supplier</option>{data.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>Receiving warehouse<select name="warehouse_id" disabled={!canWrite}><option value="">Select location</option>{data.warehouses.map(w=><option key={w.id} value={w.id}>{w.name} · {w.code}</option>)}</select></label><label>Expected delivery<input name="expected_on" type="date" disabled={!canWrite}/></label><label className="span-two">Procurement notes<textarea name="notes" rows={2} placeholder="Required equipment, supplier terms, approval context…" disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite || busy || !data.suppliers.length}>Create PO draft</button></div></form><form className="table-panel" onSubmit={e=>void submit("cash",e)}><div className="panel-heading"><div><span className="section-kicker">Cash accountability</span><h2>Open cashier session</h2></div></div><div className="form-grid" style={{padding:18}}><label>Opening float (TZS)<input name="opening_float" type="number" min="0" step="1" defaultValue="0" disabled={!canWrite}/></label><label className="span-two">Session notes<textarea name="notes" rows={2} placeholder="Till number, cashier handover, exception…" disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite || busy}>Open cash session</button></div></form></section><section className="table-panel" style={{marginTop:14}}><div className="panel-heading"><div><span className="section-kicker">Live operations</span><h2>Purchasing & financial records</h2></div></div>{data.purchaseOrders.map(po=><div className="ticket" key={po.id}><span className="ticket-icon"><Icon name="inventory" size={19}/></span><div><b>{po.po_number}</b><strong>{po.supplier?.name || "Supplier"}</strong><p>{po.status.replaceAll("_"," ")} · {po.expected_on || "Delivery date pending"}</p></div><div className="ticket-due"><b>{formatTzs(Number(po.total))}</b></div></div>)}{!data.purchaseOrders.length ? <div className="auth-empty"><p>No purchase orders yet. Add a supplier, then raise a controlled PO draft.</p></div> : null}</section></div><LogisticsLegacy data={data} membership={membership} onToast={onToast} onRefresh={onRefresh}/></>;
+}
+
+function LogisticsView({ data, membership, onToast, onRefresh }: { data: AqanData; membership: Membership; onToast: (message: string) => void; onRefresh: () => Promise<void> }) {
+  const [busy,setBusy]=useState(false); const canWrite=["owner","admin","sales","service"].includes(membership.role);
+  const receive=async(e:React.FormEvent<HTMLFormElement>)=>{e.preventDefault();const f=new FormData(e.currentTarget);const v=(n:string)=>String(f.get(n)||"");setBusy(true);try{await receiveStock({productId:v("product_id"),quantity:Number(v("quantity")),batchNumber:v("batch_number"),expiryDate:v("expiry_date"),costPerUnit:Number(v("cost_per_unit")||0),supplierId:v("supplier_id"),warehouseId:v("warehouse_id"),supplierInvoiceNumber:v("supplier_invoice"),notes:v("notes")});e.currentTarget.reset();await onRefresh();onToast("Goods received, batch recorded and stock updated atomically.");}catch(c){onToast(c instanceof Error?c.message:"Goods receipt failed.");}finally{setBusy(false);}};
+  const close=async(e:React.FormEvent<HTMLFormElement>)=>{e.preventDefault();const f=new FormData(e.currentTarget);setBusy(true);try{await closeCashSession({sessionId:String(f.get("session_id")),countedCash:Number(f.get("counted_cash")),notes:String(f.get("notes")||"")});e.currentTarget.reset();await onRefresh();onToast("Cash session closed and variance calculated.");}catch(c){onToast(c instanceof Error?c.message:"Cash close failed.");}finally{setBusy(false);}};
+  return <><div className="workspace-page"><WorkspaceHeader kicker="Execution controls" title="Receiving & cash close" description="These actions update live inventory and financial accountability records." action="Refresh" onAction={()=>void onRefresh()}/><section className="service-layout"><form className="table-panel" onSubmit={receive}><div className="panel-heading"><div><span className="section-kicker">Goods receiving note</span><h2>Receive stock & trace batch</h2></div></div><div className="form-grid" style={{padding:18}}><label>Product<select name="product_id" required disabled={!canWrite}><option value="">Select product</option>{data.products.map(p=><option key={p.id} value={p.id}>{p.name} · {p.sku}</option>)}</select></label><label>Quantity received<input name="quantity" type="number" min="1" required disabled={!canWrite}/></label><label>Supplier<select name="supplier_id" disabled={!canWrite}><option value="">Not linked</option>{data.suppliers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>Warehouse<select name="warehouse_id" disabled={!canWrite}><option value="">Main / not assigned</option>{data.warehouses.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select></label><label>Batch / lot number<input name="batch_number" disabled={!canWrite}/></label><label>Expiry date<input name="expiry_date" type="date" disabled={!canWrite}/></label><label>Unit cost (TZS)<input name="cost_per_unit" type="number" min="0" disabled={!canWrite}/></label><label>Supplier invoice / GRN ref<input name="supplier_invoice" disabled={!canWrite}/></label><label className="span-two">Receiving notes<textarea name="notes" rows={2} disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite||busy||!data.products.length}>{busy?"Receiving…":"Post goods receipt"}</button></div></form><form className="table-panel" onSubmit={close}><div className="panel-heading"><div><span className="section-kicker">End of shift</span><h2>Close cash session</h2></div></div><div className="form-grid" style={{padding:18}}><label>Open session<select name="session_id" required disabled={!canWrite}><option value="">Select open session</option>{data.cashSessions.filter(s=>s.status==="open").map(s=><option key={s.id} value={s.id}>{new Date(s.opened_at).toLocaleString("en-TZ")} · float {formatTzs(Number(s.opening_float))}</option>)}</select></label><label>Counted cash (TZS)<input name="counted_cash" type="number" min="0" required disabled={!canWrite}/></label><label className="span-two">Close notes<textarea name="notes" rows={2} disabled={!canWrite}/></label></div><div className="modal-actions" style={{padding:"0 18px 18px"}}><button className="button primary" disabled={!canWrite||busy||!data.cashSessions.some(s=>s.status==="open")}>{busy?"Closing…":"Close & reconcile"}</button></div></form></section></div><LogisticsCore data={data} membership={membership} onToast={onToast} onRefresh={onRefresh}/></>;
 }
 
 type AiActionKind = "product" | "quotation" | "invoice";
