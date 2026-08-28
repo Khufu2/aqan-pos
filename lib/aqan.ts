@@ -68,7 +68,7 @@ export type QuotationDetail = Quotation & {
   delivery_terms: string | null;
   bank_details_snapshot: string | null;
   customer?: { name: string; contact_name: string | null; phone: string | null; email: string | null; city: string | null } | null;
-  items: Array<{ id: string; product_id: string | null; description: string; quantity: number; unit_price: number; line_total: number }>;
+  items: Array<{ id: string; product_id: string | null; description: string; quantity: number; unit_price: number; line_total: number; product?: { image_path: string | null } | null }>;
 };
 
 export type ServiceRequest = {
@@ -410,7 +410,7 @@ export async function replaceProductImage(productId: string, organizationId: str
 
 export async function loadQuotationDetail(quotationId: string): Promise<QuotationDetail> {
   const client = requireClient();
-  const { data, error } = await client.from("aqan_quotations").select("id,quote_number,customer_id,subtotal,vat_amount,total,status,notes,valid_until,created_at,payment_terms,quotation_terms,delivery_terms,bank_details_snapshot,customer:aqan_customers(name,contact_name,phone,email,city),items:aqan_quotation_items(id,product_id,description,quantity,unit_price,line_total)").eq("id", quotationId).single();
+  const { data, error } = await client.from("aqan_quotations").select("id,quote_number,customer_id,subtotal,vat_amount,total,status,notes,valid_until,created_at,payment_terms,quotation_terms,delivery_terms,bank_details_snapshot,customer:aqan_customers(name,contact_name,phone,email,city),items:aqan_quotation_items(id,product_id,description,quantity,unit_price,line_total,product:aqan_products(image_path))").eq("id", quotationId).single();
   if (error || !data) throw error || new Error("Quotation could not be loaded.");
   return data as unknown as QuotationDetail;
 }
