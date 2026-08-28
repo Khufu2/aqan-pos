@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 export type Membership = {
   organization_id: string;
   organization_name: string;
-  role: "owner" | "admin" | "sales" | "service" | "viewer";
+  role: "owner" | "admin" | "manager" | "cashier" | "sales" | "salesperson" | "inventory" | "service" | "accountant" | "viewer";
 };
 
 export type Product = {
@@ -321,7 +321,8 @@ export async function loadStaff(organizationId: string): Promise<StaffMember[]> 
   return (memberships ?? []).map((member) => ({ user_id: member.user_id, role: member.role as Membership["role"], full_name: profileNames.get(member.user_id) ?? null }));
 }
 
-export async function inviteStaff(input: { email: string; fullName: string; role: "admin" | "sales" | "service" | "viewer" }) {
+export type AssignableRole = "admin" | "manager" | "cashier" | "sales" | "salesperson" | "inventory" | "service" | "accountant" | "viewer";
+export async function inviteStaff(input: { email: string; fullName: string; role: AssignableRole }) {
   const client = requireClient();
   const { data: { session } } = await client.auth.getSession();
   if (!session?.access_token) throw new Error("Your secure session has expired. Please sign in again.");
@@ -354,7 +355,7 @@ export async function updateMyPassword(password: string) {
   if (error) throw error;
 }
 
-export async function setMemberRole(userId: string, role: "admin" | "sales" | "service" | "viewer") {
+export async function setMemberRole(userId: string, role: AssignableRole) {
   const client = requireClient();
   const { error } = await client.rpc("aqan_set_member_role", { p_user_id: userId, p_role: role });
   if (error) throw error;

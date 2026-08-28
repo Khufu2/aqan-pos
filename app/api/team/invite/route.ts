@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-const allowedRoles = new Set(["admin", "sales", "service", "viewer"]);
+const allowedRoles = new Set(["admin", "manager", "cashier", "sales", "salesperson", "inventory", "service", "accountant", "viewer"]);
 
 function response(body: unknown, status = 200) {
   return Response.json(body, {
