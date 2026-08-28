@@ -1865,7 +1865,9 @@ export default function Home() {
   }, [session?.user.id]);
 
   useEffect(() => {
-    if (session && membership) setAuthOpen(false);
+    if (!session || !membership) return;
+    const timer = window.setTimeout(() => setAuthOpen(false), 0);
+    return () => window.clearTimeout(timer);
   }, [session?.user.id, membership?.organization_id]);
 
   const hasLiveAccess = Boolean(session && membership);
