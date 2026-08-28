@@ -336,10 +336,10 @@ export async function inviteStaff(input: { email: string; fullName: string; role
   return data as { ok: true; email: string; role: string };
 }
 
-export async function updateMyProfile(input: { fullName: string; phone: string; language: "en" | "sw"; theme: "light" | "dark" | "system" }) {
+export async function updateMyProfile(input: { fullName: string; phone: string; language: "en" | "sw"; theme: "light" | "dark" | "system"; fontSize?: "small" | "standard" | "large" }) {
   const client = requireClient();
   const { data: { user }, error: authError } = await client.auth.updateUser({
-    data: { full_name: input.fullName.trim(), phone: input.phone.trim(), aqan_language: input.language, aqan_theme: input.theme },
+    data: { full_name: input.fullName.trim(), phone: input.phone.trim(), aqan_language: input.language, aqan_theme: input.theme, ...(input.fontSize ? { aqan_font_size: input.fontSize } : {}) },
   });
   if (authError) throw authError;
   if (user) {
@@ -472,7 +472,7 @@ export async function createQuotation(input: { customerId: string; notes: string
     payment_terms: settings?.payment_terms ?? null,
     quotation_terms: settings?.quotation_terms ?? null,
     delivery_terms: settings?.delivery_terms ?? null,
-    bank_details_snapshot: settings?.bank_name ? [settings.bank_name, settings.bank_account_name, settings.bank_account_number, settings.bank_branch].filter(Boolean).join(" · ") : null,
+    bank_details_snapshot: settings?.bank_name ? [settings.bank_name, settings.bank_account_name, settings.bank_account_number, settings.bank_branch].filter(Boolean).join(" Â· ") : null,
   }).select("id").single();
   if (error) throw error;
   const { error: itemError } = await client.from("aqan_quotation_items").insert({ organization_id: organizationId, quotation_id: quotation.id, product_id: product.id, description: product.name, quantity: Math.max(1, Math.floor(input.quantity || 1)), unit_price: product.price });
@@ -552,7 +552,7 @@ export async function createAdvancedQuotation(input: {
       payment_terms: settings?.payment_terms ?? null,
       quotation_terms: settings?.quotation_terms ?? null,
       delivery_terms: settings?.delivery_terms ?? null,
-      bank_details_snapshot: settings?.bank_name ? [settings.bank_name, settings.bank_account_name, settings.bank_account_number, settings.bank_branch].filter(Boolean).join(" · ") : null,
+      bank_details_snapshot: settings?.bank_name ? [settings.bank_name, settings.bank_account_name, settings.bank_account_number, settings.bank_branch].filter(Boolean).join(" Â· ") : null,
     })
     .select("id,quote_number")
     .single();
