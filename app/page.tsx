@@ -1286,7 +1286,7 @@ function QuotationRecordModal({
               </div>
               {detail.items.map((item) => (
                 <div className="quote-line" key={item.id}>
-                  <strong>{item.description}</strong>
+                  <strong className="quote-product-cell">{item.product?.image_path ? <img src={productImageUrl(item.product.image_path)!} alt=""/> : <span className="quote-product-placeholder"><Icon name="inventory" size={15}/></span>}<span>{item.description}</span></strong>
                   <span>{item.quantity}</span>
                   <span>{formatTzs(Number(item.unit_price))}</span>
                   <b>{formatTzs(Number(item.line_total))}</b>
