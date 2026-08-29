@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { createPurchaseOrder, replaceProductImage, type AqanData, type Membership } from "../../lib/aqan";
+import { brandLogoUrl, createPurchaseOrder, replaceProductImage, type AqanData, type Membership } from "../../lib/aqan";
 import {
   addCustomer,
   addExpense,
@@ -81,6 +81,18 @@ function downloadCsv(filename: string, headers: string[], rows: Array<Array<unkn
   const anchor = document.createElement("a");
   anchor.href = url; anchor.download = filename; anchor.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function html(value: unknown) {
+  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+}
+
+function amountInWords(value: number) {
+  const ones = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+  const tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  const say = (number: number): string => number < 20 ? ones[number] : number < 100 ? `${tens[Math.floor(number / 10)]}${number % 10 ? `-${ones[number % 10]}` : ""}` : number < 1000 ? `${ones[Math.floor(number / 100)]} hundred${number % 100 ? ` ${say(number % 100)}` : ""}` : number < 1_000_000 ? `${say(Math.floor(number / 1000))} thousand${number % 1000 ? ` ${say(number % 1000)}` : ""}` : `${say(Math.floor(number / 1_000_000))} million${number % 1_000_000 ? ` ${say(number % 1_000_000)}` : ""}`;
+  const rounded = Math.max(0, Math.round(value));
+  return `${say(rounded).replace(/^./, (letter) => letter.toUpperCase())} Tanzanian shillings only`;
 }
 
 function Status({
@@ -856,19 +868,35 @@ function Invoices({
       onToast("Allow pop-ups to print this invoice.");
       return;
     }
+    const settings = base.settings;
+    const accent = settings?.quotation_accent || "#0f766e";
+    const logo = brandLogoUrl(settings?.logo_path);
+    const isCompact = settings?.document_layout === "compact";
+    const isClassic = settings?.document_layout === "classic";
     w.document.write(
-      `<html><head><title>${sale.invoice_number}</title><style>body{font:16px Arial;padding:40px;max-width:800px;margin:auto}h1{color:#075985}table{width:100%;border-collapse:collapse}td,th{padding:10px;border-bottom:1px solid #ddd;text-align:left}.total{text-align:right;font-size:20px}</style></head><body><h1>${base.settings?.legal_name || "AQAN Biomedical"}</h1><p>${base.settings?.address || ""}<br>${base.settings?.tin ? `TIN ${base.settings.tin}` : ""}</p><hr><h2>Invoice ${sale.invoice_number}</h2><p>Customer: ${sale.customer?.name || "Walk-in Customer"}<br>Date: ${date(sale.sold_at)} Â· Due: ${date(sale.due_date)}</p><table><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>${data.saleItems
+      `<html><head><title>${html(sale.invoice_number)}</title><style>body{font:${isCompact ? "13" : "15"}px ${isClassic ? "Georgia,serif" : "Arial,sans-serif"};padding:${isCompact ? "24" : "40"}px;max-width:800px;margin:auto;color:#17364b}.brand{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:3px solid ${accent};padding-bottom:18px}.brand h1{margin:0;color:${accent};font-size:${isCompact ? "24" : "31"}px}.brand img{max-width:100px;max-height:64px;object-fit:contain}.meta{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}.meta b{display:block;font-size:11px;text-transform:uppercase;color:#58758a;margin-bottom:5px}table{width:100%;border-collapse:collapse}td,th{padding:${isCompact ? "8" : "11"}px;border-bottom:1px solid #d8e3e8;text-align:left}th{background:#f2f8fa;font-size:11px;text-transform:uppercase;color:#58758a}.total{margin-top:18px;margin-left:auto;width:min(330px,100%);font-size:15px}.total div{display:flex;justify-content:space-between;padding:5px 0}.total .due{border-top:2px solid ${accent};margin-top:6px;padding-top:9px;font-size:18px}.words,.terms{margin-top:25px;padding:14px;background:#f5f9fa;border-radius:8px;color:#426072}.footer{margin-top:28px;padding-top:12px;border-top:1px solid #d8e3e8;color:#58758a;font-size:12px}@media print{body{padding:0}}</style></head><body><section class='brand'><div><h1>${html(settings?.legal_name || "AQAN Biomedical")}</h1><p>${html(settings?.address || "")}<br>${settings?.tin ? `TIN ${html(settings.tin)}` : ""}${settings?.phone ? `<br>${html(settings.phone)}` : ""}</p></div>${logo ? `<img src='${html(logo)}' alt='Business logo'/>` : ""}</section><section class='meta'><div><b>Invoice</b><strong>${html(sale.invoice_number)}</strong><br>${date(sale.sold_at)}</div><div><b>Bill to</b><strong>${html(sale.customer?.name || "Walk-in Customer")}</strong><br>Due ${date(sale.due_date)}</div></section><table><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>${data.saleItems
         .filter((i) => i.sale_id === sale.id)
         .map(
           (i) =>
-            `<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>${money(i.unit_price)}</td><td>${money(i.line_total)}</td></tr>`,
+            `<tr><td>${html(i.product_name)}<br><small>${html(i.sku)}</small></td><td>${i.quantity}</td><td>${money(i.unit_price)}</td><td>${money(i.line_total)}</td></tr>`,
         )
         .join(
           "",
-        )}</table><p class="total">Total ${money(sale.total)}<br>Paid ${money(sale.amount_paid)}<br><b>Balance ${money(sale.balance_due)}</b></p><p>${base.settings?.payment_terms || ""}</p></body></html>`,
+        )}</table><section class='total'><div><span>Subtotal</span><b>${money(sale.subtotal)}</b></div><div><span>VAT / tax</span><b>${money(sale.vat_amount)}</b></div><div><span>Total</span><b>${money(sale.total)}</b></div><div><span>Amount paid</span><b>${money(sale.amount_paid)}</b></div><div class='due'><span>Balance due</span><b>${money(sale.balance_due)}</b></div></section><div class='words'><b>Amount in words:</b> ${html(amountInWords(sale.total))}</div>${settings?.payment_terms ? `<div class='terms'><b>Payment instructions:</b><br>${html(settings.payment_terms)}</div>` : ""}<div class='footer'>${html(settings?.invoice_footer || "Thank you for your business.")}</div></body></html>`,
     );
     w.document.close();
     w.print();
+  };
+  const share = (sale: OperationsData["sales"][number], channel: "email" | "whatsapp") => {
+    const business = base.settings?.legal_name || "AQAN Biomedical";
+    const message = `Hello ${sale.customer?.name || "Customer"}, your invoice ${sale.invoice_number} from ${business} totals ${money(sale.total)}. ${sale.balance_due ? `Balance due: ${money(sale.balance_due)}.` : "This invoice is fully paid."}`;
+    if (channel === "email") {
+      window.location.href = `mailto:${sale.customer?.email || ""}?subject=${encodeURIComponent(`Invoice ${sale.invoice_number}`)}&body=${encodeURIComponent(message)}`;
+      return;
+    }
+    const phone = sale.customer?.phone?.replace(/\D/g, "");
+    if (!phone) { onToast("This invoice has no customer WhatsApp number. Add one to the customer account first."); return; }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
   return (
     <>
@@ -929,9 +957,7 @@ function Invoices({
                     </Status>
                   </td>
                   <td>
-                    <button className="ops-link" onClick={() => print(s)}>
-                      Print / PDF
-                    </button>
+                    <div className="ops-row-actions"><button className="ops-link" onClick={() => print(s)}>Print / PDF</button><button className="ops-link" onClick={() => share(s, "email")}>Email</button><button className="ops-link" onClick={() => share(s, "whatsapp")}>WhatsApp</button></div>
                   </td>
                 </tr>
               ))}
