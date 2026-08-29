@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { brandLogoUrl, createPurchaseOrder, replaceProductImage, type AqanData, type Membership } from "../../lib/aqan";
 import {
   addCustomer,
+  addCategory,
   addExpense,
   addSupplier,
   adjustInventory,
@@ -20,6 +21,7 @@ import {
   recordSupplierPayment,
   type OperationsData,
   type OperationalProduct,
+  type Category,
 } from "../../lib/operations";
 
 export type OperationsMode =
@@ -40,7 +42,7 @@ const date = (value: string | null | undefined) =>
         month: "short",
         year: "numeric",
       }).format(new Date(value))
-    : "â";
+    : "—";
 const number = (form: FormData, key: string) => Number(form.get(key) || 0);
 const text = (form: FormData, key: string) =>
   String(form.get(key) || "").trim();
@@ -143,7 +145,7 @@ function Modal({
     <div className="modal-backdrop">
       <div className="ops-modal" role="dialog" aria-modal="true">
         <button className="modal-close" onClick={onClose} aria-label="Close">
-          Ã
+          ×
         </button>
         <span className="section-kicker">AQAN OPERATIONS</span>
         <h2>{title}</h2>
@@ -184,6 +186,7 @@ export default function OperationsView({
     | "customer"
     | "proforma"
     | "dataTools"
+    | "categories"
     | null
   >(null);
   const [dataToolKind, setDataToolKind] = useState<DataToolKind>("products");
@@ -307,6 +310,9 @@ export default function OperationsView({
         <button className="button secondary" onClick={() => setModal("adjust")}>
           Adjust stock
         </button>
+        <button className="button secondary" onClick={() => setModal("categories")}>
+          Categories
+        </button>
         <button className="button primary" onClick={() => setModal("product")}>
           + Add product
         </button>
@@ -344,9 +350,14 @@ export default function OperationsView({
         + Process return
       </button>
     ) : mode === "expenses" ? (
-      <button className="button primary" onClick={() => setModal("expense")}>
-        + Add expense
-      </button>
+      <>
+        <button className="button secondary" onClick={() => setModal("categories")}>
+          Categories
+        </button>
+        <button className="button primary" onClick={() => setModal("expense")}>
+          + Add expense
+        </button>
+      </>
     ) : mode === "customers" ? (
       <>
         <button className="button secondary" onClick={() => { setDataToolKind("customers"); setModal("dataTools"); }}>
@@ -368,7 +379,7 @@ export default function OperationsView({
         <div className="header-actions">{actions}</div>
       </section>
       {loading ? (
-        <div className="ops-loading">Loading live business recordsâ¦</div>
+        <div className="ops-loading">Loading live business records…</div>
       ) : (
         <>
           {mode === "products" && (
@@ -445,6 +456,7 @@ export default function OperationsView({
         <ProductForm
           membership={membership}
           suppliers={base.suppliers}
+          categories={data.categories}
           busy={busy}
           error={error}
           onClose={() => setModal(null)}
@@ -507,6 +519,7 @@ export default function OperationsView({
         <ExpenseForm
           membership={membership}
           suppliers={base.suppliers}
+          categories={data.categories}
           busy={busy}
           error={error}
           onClose={() => setModal(null)}
@@ -566,6 +579,7 @@ export default function OperationsView({
       {modal === "customer" && (
         <CustomerForm
           membership={membership}
+          categories={data.categories}
           busy={busy}
           error={error}
           onClose={() => setModal(null)}
@@ -595,6 +609,16 @@ export default function OperationsView({
           base={base}
           onClose={() => setModal(null)}
           onComplete={(message) => save(async () => undefined, message)}
+        />
+      )}
+      {modal === "categories" && (
+        <CategoryForm
+          membership={membership}
+          categories={data.categories}
+          busy={busy}
+          error={error}
+          onClose={() => setModal(null)}
+          onSave={(input) => save(() => addCategory(input), "Category saved and available across AQAN.")}
         />
       )}
     </div>
@@ -628,7 +652,7 @@ function Products({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search product, SKU or barcodeâ¦"
+          placeholder="Search product, SKU or barcode…"
         />
         <div>
           {[
@@ -680,7 +704,7 @@ function Products({
                   <td>
                     <strong>{p.name}</strong>
                     <small>
-                      {p.sku} Â· {p.category} Â· {p.unit_of_measure}
+                      {p.sku} · {p.category} · {p.unit_of_measure}
                     </small>
                   </td>
                   <td>
@@ -782,7 +806,7 @@ function Purchases({
       </section>
       <section className="ops-purchase-orders">
         <div className="panel-heading"><div><span className="section-kicker">Purchase orders</span><h2>Orders waiting for delivery</h2></div><span>{purchaseOrders.length} records</span></div>
-        {purchaseOrders.length ? <div className="ops-po-list">{purchaseOrders.slice(0, 6).map((order) => <div key={order.id}><span><b>{order.po_number}</b><small>{order.supplier?.name || "Supplier"} Â· Expected {date(order.expected_on)}</small></span><strong>{money(order.total)}</strong><Status tone={order.status === "received" ? "ok" : "info"}>{order.status.replaceAll("_", " ")}</Status></div>)}</div> : <p className="ops-po-empty">Create a purchase order to track an intended supplier delivery, then use Receive stock when the goods arrive.</p>}
+        {purchaseOrders.length ? <div className="ops-po-list">{purchaseOrders.slice(0, 6).map((order) => <div key={order.id}><span><b>{order.po_number}</b><small>{order.supplier?.name || "Supplier"} · Expected {date(order.expected_on)}</small></span><strong>{money(order.total)}</strong><Status tone={order.status === "received" ? "ok" : "info"}>{order.status.replaceAll("_", " ")}</Status></div>)}</div> : <p className="ops-po-empty">Create a purchase order to track an intended supplier delivery, then use Receive stock when the goods arrive.</p>}
       </section>
       <div className="ops-table-wrap">
         <table className="ops-table">
@@ -806,7 +830,7 @@ function Purchases({
                     {p.supplier_invoice_number || "No supplier reference"}
                   </small>
                 </td>
-                <td>{p.supplier?.name || "â"}</td>
+                <td>{p.supplier?.name || "—"}</td>
                 <td>
                   {date(p.purchase_date)}
                   <small>Due {date(p.due_date)}</small>
@@ -818,7 +842,7 @@ function Purchases({
                 </td>
                 <td>
                   <Status tone={p.balance_due ? "warn" : "ok"}>
-                    {p.balance_due ? `${p.payment_status.replaceAll("_", " ")} Â· ${money(p.balance_due)} owed` : "Fully paid"}
+                    {p.balance_due ? `${p.payment_status.replaceAll("_", " ")} · ${money(p.balance_due)} owed` : "Fully paid"}
                   </Status>
                 </td>
               </tr>
@@ -1109,10 +1133,10 @@ function Payments({
                   <td>
                     <strong>{p.customer?.name || "Customer"}</strong>
                     <small>
-                      {date(p.received_at)} Â· {p.method}
+                      {date(p.received_at)} · {p.method}
                     </small>
                   </td>
-                  <td>{p.reference || "â"}</td>
+                  <td>{p.reference || "—"}</td>
                   <td>
                     <strong>{money(p.amount)}</strong>
                   </td>
@@ -1137,7 +1161,7 @@ function Payments({
                 <span>
                   <strong>{s.customer?.name || "Walk-in"}</strong>
                   <small>
-                    {s.invoice_number} Â· Due {date(s.due_date)}
+                    {s.invoice_number} · Due {date(s.due_date)}
                   </small>
                 </span>
                 <b>{money(s.balance_due)}</b>
@@ -1185,7 +1209,7 @@ function Returns({
               </td>
               <td>
                 {data.sales.find((s) => s.id === r.sale_id)?.invoice_number ||
-                  "â"}
+                  "—"}
               </td>
               <td>{date(r.created_at)}</td>
               <td>{r.action.replaceAll("_", " ")}</td>
@@ -1477,7 +1501,7 @@ function Customers({
               <span>
                 <strong>{c.name}</strong>
                 <small>
-                  {c.customer_type} Â· {c.city}
+                  {c.customer_type} · {c.city}
                 </small>
               </span>
               <Status tone={outstanding ? "warn" : "ok"}>
@@ -1590,12 +1614,58 @@ function DataToolsForm({
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Import could not be completed."); }
     finally { setBusy(false); }
   };
-  return <Modal title="Import & export business data" subtitle="Use a reviewed CSV to migrate products, customers or suppliers. Product opening stock becomes a traceable opening inventory record." onClose={onClose}><div className="ops-import-tabs">{(["products", "customers", "suppliers"] as DataToolKind[]).map((option) => <button type="button" className={kind === option ? "active" : ""} onClick={() => { setKind(option); setRows([]); setError(""); }} key={option}>{option}</button>)}</div><div className="ops-import-actions"><button type="button" className="button secondary" onClick={downloadTemplate}>Download CSV template</button><button type="button" className="button secondary" onClick={exportRows}>Export live {kind}</button></div><Field label={`Import ${kind} CSV`}><input type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setError(""); setRows(parseCsv(await file.text())); }} /></Field>{rows.length ? <div className="ops-import-preview"><strong>{rows.length} rows ready to import</strong><small>Preview: {rows.slice(0, 3).map((row) => row.name).join(" Â· ")}{rows.length > 3 ? " â¦" : ""}</small></div> : <p className="form-note">Download the template first. AQAN validates each row and writes real customer, supplier or product records only after you confirm.</p>}{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button className="button secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button primary" type="button" onClick={() => void importRows()} disabled={busy || !rows.length || !canImport}>{busy ? "Importing live recordsâ¦" : `Import ${rows.length || ""} ${kind}`}</button></div></Modal>;
+  return <Modal title="Import & export business data" subtitle="Use a reviewed CSV to migrate products, customers or suppliers. Product opening stock becomes a traceable opening inventory record." onClose={onClose}><div className="ops-import-tabs">{(["products", "customers", "suppliers"] as DataToolKind[]).map((option) => <button type="button" className={kind === option ? "active" : ""} onClick={() => { setKind(option); setRows([]); setError(""); }} key={option}>{option}</button>)}</div><div className="ops-import-actions"><button type="button" className="button secondary" onClick={downloadTemplate}>Download CSV template</button><button type="button" className="button secondary" onClick={exportRows}>Export live {kind}</button></div><Field label={`Import ${kind} CSV`}><input type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setError(""); setRows(parseCsv(await file.text())); }} /></Field>{rows.length ? <div className="ops-import-preview"><strong>{rows.length} rows ready to import</strong><small>Preview: {rows.slice(0, 3).map((row) => row.name).join(" · ")}{rows.length > 3 ? " …" : ""}</small></div> : <p className="form-note">Download the template first. AQAN validates each row and writes real customer, supplier or product records only after you confirm.</p>}{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button className="button secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button primary" type="button" onClick={() => void importRows()} disabled={busy || !rows.length || !canImport}>{busy ? "Importing live records…" : `Import ${rows.length || ""} ${kind}`}</button></div></Modal>;
+}
+
+function CategoryForm({
+  membership,
+  categories,
+  busy,
+  error,
+  onClose,
+  onSave,
+}: {
+  membership: Membership;
+  categories: Category[];
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onSave: (input: { organization_id: string; entity_type: Category["entity_type"]; name: string }) => void;
+}) {
+  const [type, setType] = useState<Category["entity_type"]>("product");
+  const visible = categories.filter((category) => category.entity_type === type);
+  return (
+    <Modal title="Categories" subtitle="Keep products, customers and expenses consistently grouped across search, imports and reports." onClose={onClose}>
+      <form onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget);
+        onSave({ organization_id: membership.organization_id, entity_type: type, name: text(form, "name") });
+      }}>
+        <div className="ops-filterbar">
+          <div>
+            {(["product", "customer", "expense"] as Category["entity_type"][]).map((option) => <button key={option} type="button" className={type === option ? "active" : ""} onClick={() => setType(option)}>{option === "product" ? "Products" : option === "customer" ? "Customers" : "Expenses"}</button>)}
+          </div>
+        </div>
+        <Field label={`New ${type} category`}>
+          <input name="name" placeholder={type === "product" ? "e.g. Consumables" : type === "customer" ? "e.g. Hospitals" : "e.g. Transport"} required />
+        </Field>
+        <div className="ops-category-list" aria-live="polite">
+          {visible.length ? visible.map((category) => <span className="ops-status info" key={category.id}>{category.name}</span>) : <p className="form-note">No saved {type} categories yet. Add one above; existing records remain unchanged.</p>}
+        </div>
+        {error && <div className="form-error">{error}</div>}
+        <div className="modal-actions">
+          <button type="button" className="button secondary" onClick={onClose} disabled={busy}>Close</button>
+          <button className="button primary" disabled={busy}>{busy ? "Saving…" : "Add category"}</button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 
 function ProductForm({
   membership,
   suppliers,
+  categories,
   busy,
   error,
   onClose,
@@ -1603,6 +1673,7 @@ function ProductForm({
 }: {
   membership: Membership;
   suppliers: AqanData["suppliers"];
+  categories: Category[];
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -1697,7 +1768,10 @@ function ProductForm({
               </select>
             </Field>
             <Field label="Category">
-              <input name="category" required placeholder="Consumables" />
+              <input name="category" required list="product-category-list" placeholder="Consumables" />
+              <datalist id="product-category-list">
+                {categories.filter((category) => category.entity_type === "product").map((category) => <option key={category.id} value={category.name} />)}
+              </datalist>
             </Field>
             <Field label="Unit of measure">
               <select name="unit">
@@ -1915,7 +1989,7 @@ function ProductForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy}>
-            {busy ? "Savingâ¦" : "Save product"}
+            {busy ? "Saving…" : "Save product"}
           </button>
         </div>
       </form>
@@ -1924,11 +1998,11 @@ function ProductForm({
 }
 
 function SupplierForm({ membership, busy, error, onClose, onSave }: { membership: Membership; busy: boolean; error: string; onClose: () => void; onSave: (input: Record<string, unknown>) => void }) {
-  return <Modal title="Add supplier" subtitle="Save the vendor once, then select them whenever you receive stock or record a supplier payment." onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ organization_id: membership.organization_id, name: text(form, "name"), contact_name: text(form, "contact_name") || null, phone: text(form, "phone") || null, whatsapp: text(form, "whatsapp") || null, email: text(form, "email") || null, tax_number: text(form, "tax_number") || null, address: text(form, "address") || null, city: text(form, "city") || null, region: text(form, "region") || null, payment_terms: text(form, "payment_terms") || null, notes: text(form, "notes") || null, status: "active" }); }}><div className="form-grid"><Field label="Supplier / business name" className="span-two"><input name="name" required placeholder="e.g. MedTech Supplies Ltd" /></Field><Field label="Contact person"><input name="contact_name" /></Field><Field label="Phone"><input name="phone" type="tel" /></Field><Field label="WhatsApp"><input name="whatsapp" type="tel" /></Field><Field label="Email"><input name="email" type="email" /></Field><Field label="TIN / tax number"><input name="tax_number" /></Field><Field label="Payment terms"><input name="payment_terms" placeholder="e.g. 30 days" /></Field><Field label="Address" className="span-two"><input name="address" /></Field><Field label="City"><input name="city" /></Field><Field label="Region"><input name="region" /></Field><Field label="Notes" className="span-two"><textarea name="notes" rows={3} /></Field></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>Cancel</button><button className="button primary" disabled={busy}>{busy ? "Savingâ¦" : "Save supplier"}</button></div></form></Modal>;
+  return <Modal title="Add supplier" subtitle="Save the vendor once, then select them whenever you receive stock or record a supplier payment." onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ organization_id: membership.organization_id, name: text(form, "name"), contact_name: text(form, "contact_name") || null, phone: text(form, "phone") || null, whatsapp: text(form, "whatsapp") || null, email: text(form, "email") || null, tax_number: text(form, "tax_number") || null, address: text(form, "address") || null, city: text(form, "city") || null, region: text(form, "region") || null, payment_terms: text(form, "payment_terms") || null, notes: text(form, "notes") || null, status: "active" }); }}><div className="form-grid"><Field label="Supplier / business name" className="span-two"><input name="name" required placeholder="e.g. MedTech Supplies Ltd" /></Field><Field label="Contact person"><input name="contact_name" /></Field><Field label="Phone"><input name="phone" type="tel" /></Field><Field label="WhatsApp"><input name="whatsapp" type="tel" /></Field><Field label="Email"><input name="email" type="email" /></Field><Field label="TIN / tax number"><input name="tax_number" /></Field><Field label="Payment terms"><input name="payment_terms" placeholder="e.g. 30 days" /></Field><Field label="Address" className="span-two"><input name="address" /></Field><Field label="City"><input name="city" /></Field><Field label="Region"><input name="region" /></Field><Field label="Notes" className="span-two"><textarea name="notes" rows={3} /></Field></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>Cancel</button><button className="button primary" disabled={busy}>{busy ? "Saving…" : "Save supplier"}</button></div></form></Modal>;
 }
 
 function PurchaseOrderForm({ membership, suppliers, warehouses, busy, error, onClose, onSave }: { membership: Membership; suppliers: AqanData["suppliers"]; warehouses: AqanData["warehouses"]; busy: boolean; error: string; onClose: () => void; onSave: (input: { organizationId: string; supplierId: string; warehouseId?: string; expectedOn?: string; notes?: string }) => void }) {
-  return <Modal title="New purchase order" subtitle="Record the supplier order first. Stock is not increased until you confirm the goods have arrived through Receive stock." onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ organizationId: membership.organization_id, supplierId: text(form, "supplier_id"), warehouseId: text(form, "warehouse_id") || undefined, expectedOn: text(form, "expected_on") || undefined, notes: text(form, "notes") || undefined }); }}><div className="form-grid"><Field label="Supplier" className="span-two"><select name="supplier_id" required defaultValue=""><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field><Field label="Receive into"><select name="warehouse_id"><option value="">Default location</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></Field><Field label="Expected delivery"><input name="expected_on" type="date" /></Field><Field label="Order notes" className="span-two"><textarea name="notes" rows={3} placeholder="Supplier reference, required items or delivery instructions" /></Field></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>Cancel</button><button className="button primary" disabled={busy}>{busy ? "Creatingâ¦" : "Create purchase order"}</button></div></form></Modal>;
+  return <Modal title="New purchase order" subtitle="Record the supplier order first. Stock is not increased until you confirm the goods have arrived through Receive stock." onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); onSave({ organizationId: membership.organization_id, supplierId: text(form, "supplier_id"), warehouseId: text(form, "warehouse_id") || undefined, expectedOn: text(form, "expected_on") || undefined, notes: text(form, "notes") || undefined }); }}><div className="form-grid"><Field label="Supplier" className="span-two"><select name="supplier_id" required defaultValue=""><option value="">Select supplier</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></Field><Field label="Receive into"><select name="warehouse_id"><option value="">Default location</option>{warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></Field><Field label="Expected delivery"><input name="expected_on" type="date" /></Field><Field label="Order notes" className="span-two"><textarea name="notes" rows={3} placeholder="Supplier reference, required items or delivery instructions" /></Field></div>{error && <div className="form-error">{error}</div>}<div className="modal-actions"><button type="button" className="button secondary" onClick={onClose}>Cancel</button><button className="button primary" disabled={busy}>{busy ? "Creating…" : "Create purchase order"}</button></div></form></Modal>;
 }
 
 function PurchaseForm({
@@ -2189,7 +2263,7 @@ function PurchaseForm({
                 disabled={lines.length === 1}
                 onClick={() => setLines(lines.filter((x) => x.key !== l.key))}
               >
-                Ã
+                ×
               </button>
             </div>
           ))}
@@ -2247,7 +2321,7 @@ function PurchaseForm({
             className="button primary"
             disabled={busy || lines.some((l) => !l.product_id)}
           >
-            {busy ? "Receivingâ¦" : "Save purchase & receive stock"}
+            {busy ? "Receiving…" : "Save purchase & receive stock"}
           </button>
         </div>
       </form>
@@ -2327,7 +2401,7 @@ function ProformaForm({
               <option value="">Select product</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} Â· {money(p.price)}
+                  {p.name} · {money(p.price)}
                 </option>
               ))}
             </select>
@@ -2368,7 +2442,7 @@ function ProformaForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy || !productId}>
-            {busy ? "Savingâ¦" : "Create proforma"}
+            {busy ? "Saving…" : "Create proforma"}
           </button>
         </div>
       </form>
@@ -2428,7 +2502,7 @@ function AdjustmentForm({
               <option value="">Choose product</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} Â· {p.stock} in stock
+                  {p.name} · {p.stock} in stock
                 </option>
               ))}
             </select>
@@ -2440,7 +2514,7 @@ function AdjustmentForm({
                 .filter((b) => b.product_id === product)
                 .map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.batch_number || "Unnumbered"} Â· {b.quantity_on_hand} Â·
+                    {b.batch_number || "Unnumbered"} · {b.quantity_on_hand} ·
                     exp {date(b.expiry_date)}
                   </option>
                 ))}
@@ -2476,7 +2550,7 @@ function AdjustmentForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy}>
-            {busy ? "Savingâ¦" : "Post adjustment"}
+            {busy ? "Saving…" : "Post adjustment"}
           </button>
         </div>
       </form>
@@ -2487,6 +2561,7 @@ function AdjustmentForm({
 function ExpenseForm({
   membership,
   suppliers,
+  categories,
   busy,
   error,
   onClose,
@@ -2494,6 +2569,7 @@ function ExpenseForm({
 }: {
   membership: Membership;
   suppliers: AqanData["suppliers"];
+  categories: Category[];
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -2533,16 +2609,10 @@ function ExpenseForm({
             />
           </Field>
           <Field label="Category">
-            <select name="category_name">
-              <option>Rent</option>
-              <option>Utilities</option>
-              <option>Salaries</option>
-              <option>Transport</option>
-              <option>Internet</option>
-              <option>Repairs</option>
-              <option>Marketing</option>
-              <option>Other</option>
-            </select>
+            <input name="category_name" list="expense-category-list" defaultValue="Other" required />
+            <datalist id="expense-category-list">
+              {["Rent", "Utilities", "Salaries", "Transport", "Internet", "Repairs", "Marketing", "Other", ...categories.filter((category) => category.entity_type === "expense").map((category) => category.name)].filter((name, index, all) => all.indexOf(name) === index).map((name) => <option key={name} value={name} />)}
+            </datalist>
           </Field>
           <Field label="Description" className="span-two">
             <input name="description" required />
@@ -2582,7 +2652,7 @@ function ExpenseForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy}>
-            {busy ? "Savingâ¦" : "Record expense"}
+            {busy ? "Saving…" : "Record expense"}
           </button>
         </div>
       </form>
@@ -2656,7 +2726,7 @@ function CustomerPaymentForm({
                 .filter((s) => s.customer_id === customer && s.balance_due > 0)
                 .map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.invoice_number} Â· {money(s.balance_due)} due
+                    {s.invoice_number} · {money(s.balance_due)} due
                   </option>
                 ))}
             </select>
@@ -2686,7 +2756,7 @@ function CustomerPaymentForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy}>
-            {busy ? "Allocatingâ¦" : "Record payment"}
+            {busy ? "Allocating…" : "Record payment"}
           </button>
         </div>
       </form>
@@ -2759,7 +2829,7 @@ function SupplierPaymentForm({
                 .filter((p) => p.supplier_id === supplier && p.balance_due > 0)
                 .map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.purchase_number} Â· {money(p.balance_due)}
+                    {p.purchase_number} · {money(p.balance_due)}
                   </option>
                 ))}
             </select>
@@ -2789,7 +2859,7 @@ function SupplierPaymentForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy}>
-            {busy ? "Savingâ¦" : "Record supplier payment"}
+            {busy ? "Saving…" : "Record supplier payment"}
           </button>
         </div>
       </form>
@@ -2863,7 +2933,7 @@ function ReturnForm({
                 .filter((s) => s.status !== "void")
                 .map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.invoice_number} Â· {s.customer?.name || "Walk-in"} Â·{" "}
+                    {s.invoice_number} · {s.customer?.name || "Walk-in"} ·{" "}
                     {money(s.total)}
                   </option>
                 ))}
@@ -2883,7 +2953,7 @@ function ReturnForm({
                 )
                 .map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.product_name} Â· {i.quantity - i.returned_quantity}{" "}
+                    {i.product_name} · {i.quantity - i.returned_quantity}{" "}
                     returnable
                   </option>
                 ))}
@@ -2942,7 +3012,7 @@ function ReturnForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy || !item}>
-            {busy ? "Processingâ¦" : "Process return"}
+            {busy ? "Processing…" : "Process return"}
           </button>
         </div>
       </form>
@@ -2952,12 +3022,14 @@ function ReturnForm({
 
 function CustomerForm({
   membership,
+  categories,
   busy,
   error,
   onClose,
   onSave,
 }: {
   membership: Membership;
+  categories: Category[];
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -3041,8 +3113,12 @@ function CustomerForm({
           <Field label="Category">
             <input
               name="category"
+              list="customer-category-list"
               placeholder="Retail / corporate / hospital"
             />
+            <datalist id="customer-category-list">
+              {categories.filter((category) => category.entity_type === "customer").map((category) => <option key={category.id} value={category.name} />)}
+            </datalist>
           </Field>
           <Field label="Payment terms">
             <input name="payment_terms" placeholder="30 days" />
@@ -3057,7 +3133,7 @@ function CustomerForm({
             Cancel
           </button>
           <button className="button primary" disabled={busy}>
-            {busy ? "Savingâ¦" : "Create customer"}
+            {busy ? "Saving…" : "Create customer"}
           </button>
         </div>
       </form>
