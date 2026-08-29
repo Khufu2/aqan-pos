@@ -194,6 +194,12 @@ export default function OperationsView({
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("all");
   const [query, setQuery] = useState("");
+  const [supplierDetailId, setSupplierDetailId] = useState<string | null>(null);
+  const [supplierPaymentId, setSupplierPaymentId] = useState<string | undefined>();
+  const openSupplierPayment = (supplierId?: string) => {
+    setSupplierPaymentId(supplierId);
+    setModal("supplierPayment");
+  };
   const reload = async () => {
     setLoading(true);
     try {
@@ -401,8 +407,9 @@ export default function OperationsView({
               suppliers={base.suppliers}
               purchaseOrders={base.purchaseOrders}
               onReceive={() => setModal("purchase")}
-              onPay={() => setModal("supplierPayment")}
+              onPay={() => openSupplierPayment()}
               onAddSupplier={() => setModal("supplier")}
+              onOpenSupplier={setSupplierDetailId}
             />
           )}
           {mode === "invoices" && (
@@ -429,7 +436,7 @@ export default function OperationsView({
             <Payments
               data={data}
               onReceive={() => setModal("customerPayment")}
-              onSupplier={() => setModal("supplierPayment")}
+              onSupplier={() => openSupplierPayment()}
             />
           )}
           {mode === "returns" && (
@@ -552,7 +559,8 @@ export default function OperationsView({
           purchases={data.purchases}
           busy={busy}
           error={error}
-          onClose={() => setModal(null)}
+          initialSupplierId={supplierPaymentId}
+          onClose={() => { setModal(null); setSupplierPaymentId(undefined); }}
           onSave={(input) =>
             save(
               () => recordSupplierPayment(input),
@@ -619,6 +627,14 @@ export default function OperationsView({
           error={error}
           onClose={() => setModal(null)}
           onSave={(input) => save(() => addCategory(input), "Category saved and available across AQAN.")}
+        />
+      )}
+      {supplierDetailId && (
+        <SupplierDetail
+          supplier={base.suppliers.find((supplier) => supplier.id === supplierDetailId) || null}
+          purchases={data.purchases}
+          onClose={() => setSupplierDetailId(null)}
+          onRecordPayment={(supplierId) => { setSupplierDetailId(null); openSupplierPayment(supplierId); }}
         />
       )}
     </div>
@@ -756,6 +772,7 @@ function Purchases({
   onReceive,
   onPay,
   onAddSupplier,
+  onOpenSupplier,
 }: {
   data: OperationsData;
   suppliers: AqanData["suppliers"];
@@ -763,6 +780,7 @@ function Purchases({
   onReceive: () => void;
   onPay: () => void;
   onAddSupplier: () => void;
+  onOpenSupplier: (supplierId: string) => void;
 }) {
   return (
     <>
@@ -799,7 +817,7 @@ function Purchases({
           <p>Select a supplier when receiving stock. AQAN then keeps their purchase history and outstanding balance together.</p>
         </div>
         <div className="ops-supplier-chips">
-          {suppliers.slice(0, 6).map((supplier) => <span key={supplier.id}><b>{supplier.name}</b><small>{supplier.payment_terms || "Payment terms not set"}</small></span>)}
+          {suppliers.slice(0, 6).map((supplier) => <button type="button" key={supplier.id} onClick={() => onOpenSupplier(supplier.id)}><b>{supplier.name}</b><small>{supplier.payment_terms || "Payment terms not set"}</small></button>)}
           {!suppliers.length ? <span className="ops-empty-supplier">No suppliers yet</span> : null}
         </div>
         <button className="button secondary" onClick={onAddSupplier}>+ Add supplier</button>
@@ -830,7 +848,7 @@ function Purchases({
                     {p.supplier_invoice_number || "No supplier reference"}
                   </small>
                 </td>
-                <td>{p.supplier?.name || "—"}</td>
+                <td>{p.supplier_id && p.supplier ? <button type="button" className="ops-link" onClick={() => onOpenSupplier(p.supplier_id!)}>{p.supplier.name}</button> : "—"}</td>
                 <td>
                   {date(p.purchase_date)}
                   <small>Due {date(p.due_date)}</small>
@@ -865,6 +883,56 @@ function Purchases({
         </button>
       </div>
     </>
+  );
+}
+
+function SupplierDetail({
+  supplier,
+  purchases,
+  onClose,
+  onRecordPayment,
+}: {
+  supplier: AqanData["suppliers"][number] | null;
+  purchases: OperationsData["purchases"];
+  onClose: () => void;
+  onRecordPayment: (supplierId: string) => void;
+}) {
+  if (!supplier) return null;
+  const history = purchases.filter((purchase) => purchase.supplier_id === supplier.id);
+  const total = history.reduce((sum, purchase) => sum + Number(purchase.total), 0);
+  const paid = history.reduce((sum, purchase) => sum + Number(purchase.amount_paid), 0);
+  const outstanding = history.reduce((sum, purchase) => sum + Number(purchase.balance_due), 0);
+  const message = `Hello ${supplier.contact_name || supplier.name}, we are following up regarding the AQAN supplier account. Current outstanding balance: ${money(outstanding)}.`;
+  const phone = supplier.phone?.replace(/\D/g, "");
+  return (
+    <Modal title={supplier.name} subtitle="Supplier account, purchase history and payment position." onClose={onClose}>
+      <section className="ops-kpis">
+        <article><span>Total purchased</span><strong>{money(total)}</strong></article>
+        <article><span>Amount paid</span><strong>{money(paid)}</strong></article>
+        <article><span>Outstanding</span><strong>{money(outstanding)}</strong></article>
+        <article><span>Purchase invoices</span><strong>{history.length}</strong></article>
+      </section>
+      <section className="ops-subpanel">
+        <div>
+          <strong>{supplier.contact_name || "Supplier contact"}</strong>
+          <p>{supplier.phone || "No phone"}{supplier.email ? ` · ${supplier.email}` : ""}</p>
+          <small>{supplier.payment_terms || "No payment terms set"}</small>
+        </div>
+        {supplier.email ? <a className="button secondary" href={`mailto:${supplier.email}?subject=${encodeURIComponent(`Supplier account – ${supplier.name}`)}&body=${encodeURIComponent(message)}`}>Email</a> : null}
+        {phone ? <a className="button secondary" href={`https://wa.me/${phone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer">WhatsApp</a> : null}
+      </section>
+      <div className="ops-table-wrap">
+        <table className="ops-table">
+          <thead><tr><th>Purchase</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+          <tbody>{history.map((purchase) => <tr key={purchase.id}><td><strong>{purchase.purchase_number}</strong><small>{purchase.supplier_invoice_number || "No supplier reference"}</small></td><td>{date(purchase.purchase_date)}</td><td>{money(purchase.total)}</td><td>{money(purchase.amount_paid)}</td><td>{money(purchase.balance_due)}</td><td><Status tone={purchase.balance_due ? "warn" : "ok"}>{purchase.balance_due ? "Amount due" : "Fully paid"}</Status></td></tr>)}</tbody>
+        </table>
+        {!history.length ? <Empty title="No purchase history" copy="Use Receive stock and select this supplier to start its live history." /> : null}
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="button secondary" onClick={onClose}>Close</button>
+        <button type="button" className="button primary" onClick={() => onRecordPayment(supplier.id)}>Record supplier payment</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -2796,6 +2864,7 @@ function CustomerPaymentForm({
 function SupplierPaymentForm({
   suppliers,
   purchases,
+  initialSupplierId,
   busy,
   error,
   onClose,
@@ -2803,6 +2872,7 @@ function SupplierPaymentForm({
 }: {
   suppliers: AqanData["suppliers"];
   purchases: OperationsData["purchases"];
+  initialSupplierId?: string;
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -2815,7 +2885,7 @@ function SupplierPaymentForm({
     purchaseId?: string;
   }) => void;
 }) {
-  const [supplier, setSupplier] = useState("");
+  const [supplier, setSupplier] = useState(initialSupplierId || "");
   return (
     <Modal
       title="Record supplier payment"
