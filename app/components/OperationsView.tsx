@@ -1583,6 +1583,36 @@ function DataToolsForm({
       downloadCsv("aqan-suppliers.csv", ["name", "contact_name", "phone", "whatsapp", "email", "tax_number", "address", "city", "region", "payment_terms", "notes"], base.suppliers.map((supplier) => [supplier.name, supplier.contact_name, supplier.phone, "", supplier.email, "", "", "", "", supplier.payment_terms, ""]));
     }
   };
+  const exportBackup = () => {
+    const payload = {
+      product: "AQAN Biomedical POS",
+      format: "aqan-operational-backup-v1",
+      exported_at: new Date().toISOString(),
+      organization_id: membership.organization_id,
+      data: {
+        business_settings: base.settings,
+        products: data.products,
+        customers: base.customers,
+        suppliers: base.suppliers,
+        quotations: base.quotations,
+        invoices: data.sales,
+        invoice_items: data.saleItems,
+        purchases: data.purchases,
+        stock_batches: data.batches,
+        stock_movements: data.movements,
+        customer_payments: data.customerPayments,
+        returns: data.returns,
+        expenses: data.expenses,
+        categories: data.categories,
+      },
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aqan-business-backup-${today()}.json`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
   const templateRows: Record<DataToolKind, string> = {
     products: "name,sku,barcode,category,description,unit,cost,retail_price,wholesale_price,opening_stock,reorder_level,tax_rate\nExample product,SKU-001,123456789,Consumables,Optional description,piece,8500,12000,11000,0,5,18",
     customers: "name,contact_name,phone,whatsapp,email,tax_number,billing_address,city,region,country,category,payment_terms,credit_limit\nExample Customer,Jane,+255700000000,+255700000000,customer@example.com,,Dar es Salaam,Dar es Salaam,Dar es Salaam,Tanzania,Retail,30 days,0",
@@ -1614,7 +1644,7 @@ function DataToolsForm({
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Import could not be completed."); }
     finally { setBusy(false); }
   };
-  return <Modal title="Import & export business data" subtitle="Use a reviewed CSV to migrate products, customers or suppliers. Product opening stock becomes a traceable opening inventory record." onClose={onClose}><div className="ops-import-tabs">{(["products", "customers", "suppliers"] as DataToolKind[]).map((option) => <button type="button" className={kind === option ? "active" : ""} onClick={() => { setKind(option); setRows([]); setError(""); }} key={option}>{option}</button>)}</div><div className="ops-import-actions"><button type="button" className="button secondary" onClick={downloadTemplate}>Download CSV template</button><button type="button" className="button secondary" onClick={exportRows}>Export live {kind}</button></div><Field label={`Import ${kind} CSV`}><input type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setError(""); setRows(parseCsv(await file.text())); }} /></Field>{rows.length ? <div className="ops-import-preview"><strong>{rows.length} rows ready to import</strong><small>Preview: {rows.slice(0, 3).map((row) => row.name).join(" · ")}{rows.length > 3 ? " …" : ""}</small></div> : <p className="form-note">Download the template first. AQAN validates each row and writes real customer, supplier or product records only after you confirm.</p>}{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button className="button secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button primary" type="button" onClick={() => void importRows()} disabled={busy || !rows.length || !canImport}>{busy ? "Importing live records…" : `Import ${rows.length || ""} ${kind}`}</button></div></Modal>;
+  return <Modal title="Import, export & backup" subtitle="Use a reviewed CSV to migrate products, customers or suppliers. Export a portable snapshot before major changes; restoring live financial records is deliberately handled by an administrator, not a browser button." onClose={onClose}><div className="ops-import-tabs">{(["products", "customers", "suppliers"] as DataToolKind[]).map((option) => <button type="button" className={kind === option ? "active" : ""} onClick={() => { setKind(option); setRows([]); setError(""); }} key={option}>{option}</button>)}</div><div className="ops-import-actions"><button type="button" className="button secondary" onClick={downloadTemplate}>Download CSV template</button><button type="button" className="button secondary" onClick={exportRows}>Export live {kind}</button><button type="button" className="button secondary" onClick={exportBackup}>Download AQAN backup</button></div><Field label={`Import ${kind} CSV`}><input type="file" accept=".csv,text/csv" onChange={async (event) => { const file = event.target.files?.[0]; if (!file) return; setError(""); setRows(parseCsv(await file.text())); }} /></Field>{rows.length ? <div className="ops-import-preview"><strong>{rows.length} rows ready to import</strong><small>Preview: {rows.slice(0, 3).map((row) => row.name).join(" · ")}{rows.length > 3 ? " …" : ""}</small></div> : <p className="form-note">Download the template first. AQAN validates each row and writes real customer, supplier or product records only after you confirm.</p>}{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button className="button secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button><button className="button primary" type="button" onClick={() => void importRows()} disabled={busy || !rows.length || !canImport}>{busy ? "Importing live records…" : `Import ${rows.length || ""} ${kind}`}</button></div></Modal>;
 }
 
 function CategoryForm({
