@@ -151,8 +151,12 @@ export type BusinessSettings = {
   invoice_footer: string | null;
   vat_rate: number;
   logo_path?: string | null;
-  document_layout?: "classic" | "modern" | "compact";
+  document_layout?: "classic" | "modern" | "compact" | "minimal" | "bold";
   quotation_accent?: string;
+  default_currency?: string;
+  enabled_currencies?: string[];
+  exchange_rates?: Record<string, number>;
+  document_language?: "en" | "sw";
 };
 
 export type Supplier = { id: string; name: string; contact_name: string | null; phone: string | null; email: string | null; status: string; payment_terms: string | null; };
@@ -218,7 +222,7 @@ export async function loadAqanData(): Promise<AqanData> {
     client.from("aqan_service_requests").select("id,request_number,customer_id,equipment_name,serial_number,issue,priority,status,scheduled_for,customer:aqan_customers(name)").order("created_at", { ascending: false }).limit(50),
     client.from("aqan_campaigns").select("id,name,channel,status,audience_count,sent_count,opened_count,replied_count,created_at").order("created_at", { ascending: false }).limit(50),
     client.from("aqan_crm_leads").select("id,facility_name,contact_name,email,phone,city,specialty,lead_status,lead_score,estimated_value,last_contact_at,next_action_at,notes,facility_type,ownership_category,region,district,council,ward,preferred_channel,service_count,equipment_count,equipment_summary,last_outreach_at,last_outreach_channel").order("lead_score", { ascending: false }).limit(1000),
-    client.from("aqan_business_settings").select("legal_name,address,phone,email,tin,vrn,bank_name,bank_account_name,bank_account_number,bank_branch,payment_terms,quotation_terms,delivery_terms,invoice_footer,vat_rate,logo_path,document_layout,quotation_accent").maybeSingle(),
+    client.from("aqan_business_settings").select("legal_name,address,phone,email,tin,vrn,bank_name,bank_account_name,bank_account_number,bank_branch,payment_terms,quotation_terms,delivery_terms,invoice_footer,vat_rate,logo_path,document_layout,quotation_accent,default_currency,enabled_currencies,exchange_rates,document_language").maybeSingle(),
     client.from("aqan_delivery_notes").select("id,delivery_number,sale_id,recipient_name,recipient_phone,delivery_address,driver_name,vehicle_number,status,received_by_name,received_at,created_at").order("created_at", { ascending: false }).limit(50),
     client.from("aqan_gate_passes").select("id,pass_number,vehicle_number,driver_name,driver_phone,purpose,status,check_in_at,check_out_at").order("check_in_at", { ascending: false }).limit(50),
     client.from("aqan_suppliers").select("id,name,contact_name,phone,email,status,payment_terms").order("name").limit(100),
@@ -598,8 +602,18 @@ export function brandLogoUrl(path: string | null | undefined) {
   return requireClient().storage.from("aqan-branding").getPublicUrl(path).data.publicUrl;
 }
 
-export async function updateDocumentDesign(organizationId: string, layout: "classic" | "modern" | "compact", accent: string) {
-  const { error } = await requireClient().from("aqan_business_settings").upsert({ organization_id: organizationId, document_layout: layout, quotation_accent: accent });
+export async function updateDocumentDesign(organizationId: string, layout: "classic" | "modern" | "compact" | "minimal" | "bold", accent: string, documentLanguage: "en" | "sw" = "en") {
+  const { error } = await requireClient().from("aqan_business_settings").upsert({ organization_id: organizationId, document_layout: layout, quotation_accent: accent, document_language: documentLanguage });
+  if (error) throw error;
+}
+
+export async function updateCurrencySettings(organizationId: string, input: { defaultCurrency: string; enabledCurrencies: string[]; exchangeRates: Record<string, number> }) {
+  const defaultCurrency = input.defaultCurrency.trim().toUpperCase();
+  const enabledCurrencies = [...new Set(input.enabledCurrencies.map((item) => item.trim().toUpperCase()).filter((item) => /^[A-Z]{3}$/.test(item)))];
+  if (!enabledCurrencies.includes(defaultCurrency)) throw new Error("The base currency must be included in the enabled currencies.");
+  const exchangeRates = Object.fromEntries(enabledCurrencies.map((currency) => [currency, currency === defaultCurrency ? 1 : Number(input.exchangeRates[currency])]).filter(([, rate]) => Number.isFinite(rate) && Number(rate) > 0));
+  if (Object.keys(exchangeRates).length !== enabledCurrencies.length) throw new Error("Enter a positive conversion rate for each enabled currency.");
+  const { error } = await requireClient().from("aqan_business_settings").upsert({ organization_id: organizationId, default_currency: defaultCurrency, enabled_currencies: enabledCurrencies, exchange_rates: exchangeRates });
   if (error) throw error;
 }
 
