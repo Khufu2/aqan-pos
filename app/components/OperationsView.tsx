@@ -130,6 +130,31 @@ function html(value: unknown) {
     .replaceAll("'", "&#039;");
 }
 
+function customerDocumentLanguage(source: string, language: "en" | "sw" | undefined) {
+  if (language !== "sw") return source;
+  return source
+    .replaceAll("PACKING SLIP", "HATI YA UPANGAJI")
+    .replaceAll(">Invoice<", ">Ankara<")
+    .replaceAll(">Bill to<", ">Mteja<")
+    .replaceAll(">Due ", ">Tarehe ya malipo ")
+    .replaceAll(">Item<", ">Bidhaa<")
+    .replaceAll(">Qty<", ">Idadi<")
+    .replaceAll(">Quantity<", ">Idadi<")
+    .replaceAll(">Price<", ">Bei<")
+    .replaceAll(">Subtotal<", ">Jumla ndogo<")
+    .replaceAll(">VAT / tax<", ">VAT / kodi<")
+    .replaceAll(">Amount paid<", ">Kilicholipwa<")
+    .replaceAll(">Balance due<", ">Salio<")
+    .replaceAll(">Amount in words:", ">Kiasi kwa maneno:")
+    .replaceAll(">Payment instructions:", ">Maelekezo ya malipo:")
+    .replaceAll(">Deliver to<", ">Mpokeaji<")
+    .replaceAll(">Reference<", ">Kumbukumbu<")
+    .replaceAll("Prices intentionally omitted", "Bei hazijaonyeshwa")
+    .replaceAll("Packed by / date", "Aliyepanga / tarehe")
+    .replaceAll("Received by / signature", "Aliyepokea / sahihi")
+    .replaceAll("No items available for this invoice.", "Hakuna bidhaa katika ankara hii.");
+}
+
 function amountInWords(value: number) {
   const ones = [
     "zero",
@@ -1269,7 +1294,7 @@ function Invoices({
       : isBold
         ? "Arial Black,Arial,sans-serif"
         : "Arial,sans-serif";
-    w.document.write(
+    w.document.write(customerDocumentLanguage(
       `<html><head><title>${html(sale.invoice_number)}</title><style>body{font:${isCompact ? "13" : "15"}px ${documentFont};padding:${isCompact ? "24" : "40"}px;max-width:800px;margin:auto;color:#17364b}.brand{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;border-bottom:${isMinimal ? "1" : isBold ? "6" : "3"}px solid ${accent};padding-bottom:18px}.brand h1{margin:0;color:${accent};font-size:${isCompact ? "24" : isBold ? "34" : "31"}px}.brand img{max-width:100px;max-height:64px;object-fit:contain}.meta{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}.meta b{display:block;font-size:11px;text-transform:uppercase;color:#58758a;margin-bottom:5px}table{width:100%;border-collapse:collapse}td,th{padding:${isCompact ? "8" : "11"}px;border-bottom:1px solid #d8e3e8;text-align:left}th{background:${isMinimal ? "transparent" : isBold ? accent : "#f2f8fa"};color:${isBold ? "white" : "#58758a"};font-size:11px;text-transform:uppercase}.total{margin-top:18px;margin-left:auto;width:min(330px,100%);font-size:15px}.total div{display:flex;justify-content:space-between;padding:5px 0}.total .due{border-top:2px solid ${accent};margin-top:6px;padding-top:9px;font-size:18px}.words,.terms{margin-top:25px;padding:${isMinimal ? "0" : "14px"};background:${isMinimal ? "transparent" : "#f5f9fa"};border-radius:8px;color:#426072}.footer{margin-top:28px;padding-top:12px;border-top:1px solid #d8e3e8;color:#58758a;font-size:12px}@media print{body{padding:0}}</style></head><body><section class='brand'><div><h1>${html(settings?.legal_name || "AQAN Biomedical")}</h1><p>${html(settings?.address || "")}<br>${settings?.tin ? `TIN ${html(settings.tin)}` : ""}${settings?.phone ? `<br>${html(settings.phone)}` : ""}</p></div>${logo ? `<img src='${html(logo)}' alt='Business logo'/>` : ""}</section><section class='meta'><div><b>Invoice</b><strong>${html(sale.invoice_number)}</strong><br>${date(sale.sold_at)}</div><div><b>Bill to</b><strong>${html(sale.customer?.name || "Walk-in Customer")}</strong><br>Due ${date(sale.due_date)}</div></section><table><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>${data.saleItems
         .filter((i) => i.sale_id === sale.id)
         .map(
@@ -1279,7 +1304,7 @@ function Invoices({
         .join(
           "",
         )}</table><section class='total'><div><span>Subtotal</span><b>${money(sale.subtotal)}</b></div><div><span>VAT / tax</span><b>${money(sale.vat_amount)}</b></div><div><span>Total</span><b>${money(sale.total)}</b></div><div><span>Amount paid</span><b>${money(sale.amount_paid)}</b></div><div class='due'><span>Balance due</span><b>${money(sale.balance_due)}</b></div></section><div class='words'><b>Amount in words:</b> ${html(amountInWords(sale.total))}</div>${settings?.payment_terms ? `<div class='terms'><b>Payment instructions:</b><br>${html(settings.payment_terms)}</div>` : ""}<div class='footer'>${html(settings?.invoice_footer || "Thank you for your business.")}</div></body></html>`,
-    );
+    settings?.document_language));
     w.document.close();
     w.print();
   };
@@ -1291,9 +1316,9 @@ function Invoices({
     }
     const settings = base.settings;
     const items = data.saleItems.filter((item) => item.sale_id === sale.id);
-    popup.document.write(
+    popup.document.write(customerDocumentLanguage(
       `<!doctype html><html><head><title>Packing slip ${html(sale.invoice_number)}</title><style>body{font:15px Arial,sans-serif;color:#17364b;padding:38px;max-width:760px;margin:auto}.head{display:flex;justify-content:space-between;border-bottom:3px solid ${html(settings?.quotation_accent || "#0f766e")};padding-bottom:16px}.head h1{margin:0;font-size:27px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:22px 0}.meta b{display:block;font-size:11px;text-transform:uppercase;color:#58758a;margin-bottom:5px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{padding:12px;text-align:left;border-bottom:1px solid #d8e3e8}th{font-size:11px;text-transform:uppercase;background:#f2f8fa;color:#58758a}.sign{display:grid;grid-template-columns:1fr 1fr;gap:35px;margin-top:54px}.line{border-top:1px solid #718a99;padding-top:7px;font-size:12px;color:#58758a}@media print{body{padding:10px}}</style></head><body><section class="head"><div><h1>${html(settings?.legal_name || "AQAN Biomedical")}</h1><p>${html(settings?.address || "")}</p></div><div><b>PACKING SLIP</b><br>${html(sale.invoice_number)}<br>${date(sale.sold_at)}</div></section><section class="meta"><div><b>Deliver to</b><strong>${html(sale.customer?.name || "Walk-in customer")}</strong></div><div><b>Reference</b><strong>${html(sale.invoice_number)}</strong><br><small>Prices intentionally omitted</small></div></section><table><thead><tr><th>Item</th><th>SKU</th><th>Quantity</th></tr></thead><tbody>${items.map((item) => `<tr><td>${html(item.product_name)}</td><td>${html(item.sku)}</td><td>${item.quantity}</td></tr>`).join("") || "<tr><td colspan='3'>No items available for this invoice.</td></tr>"}</tbody></table><section class="sign"><div class="line">Packed by / date</div><div class="line">Received by / signature</div></section></body></html>`,
-    );
+    settings?.document_language));
     popup.document.close();
     popup.print();
   };
