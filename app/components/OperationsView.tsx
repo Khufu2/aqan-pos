@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { brandLogoUrl, createPurchaseOrder, replaceProductImage, type AqanData, type Membership } from "../../lib/aqan";
+import { copyDocumentShare, createDocumentShare } from "../../lib/document-shares";
 import {
   addCustomer,
   addCategory,
@@ -979,9 +980,11 @@ function Invoices({
     w.document.close();
     w.print();
   };
-  const share = (sale: OperationsData["sales"][number], channel: "email" | "whatsapp") => {
+  const share = async (sale: OperationsData["sales"][number], channel: "email" | "whatsapp") => {
     const business = base.settings?.legal_name || "AQAN Biomedical";
-    const message = `Hello ${sale.customer?.name || "Customer"}, your invoice ${sale.invoice_number} from ${business} totals ${money(sale.total)}. ${sale.balance_due ? `Balance due: ${money(sale.balance_due)}.` : "This invoice is fully paid."}`;
+    try {
+      const secure = await createDocumentShare({ documentType: "invoice", documentId: sale.id, recipientName: sale.customer?.name, recipientEmail: sale.customer?.email, permission: "comment" });
+      const message = `Hello ${sale.customer?.name || "Customer"}, your invoice ${sale.invoice_number} from ${business} totals ${money(sale.total)}. ${sale.balance_due ? `Balance due: ${money(sale.balance_due)}.` : "This invoice is fully paid."}\n\nOpen, download, comment or request a correction securely: ${secure.url}`;
     if (channel === "email") {
       window.location.href = `mailto:${sale.customer?.email || ""}?subject=${encodeURIComponent(`Invoice ${sale.invoice_number}`)}&body=${encodeURIComponent(message)}`;
       return;
@@ -989,6 +992,11 @@ function Invoices({
     const phone = sale.customer?.phone?.replace(/\D/g, "");
     if (!phone) { onToast("This invoice has no customer WhatsApp number. Add one to the customer account first."); return; }
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+    } catch (caught) { onToast(caught instanceof Error ? caught.message : "Secure link could not be created."); }
+  };
+  const copyShare = async (documentType: "invoice" | "quotation" | "proforma", documentId: string, recipientName?: string | null, recipientEmail?: string | null) => {
+    try { await copyDocumentShare({ documentType, documentId, recipientName, recipientEmail, permission: "comment" }); onToast("Secure customer link copied. It expires in 30 days."); }
+    catch (caught) { onToast(caught instanceof Error ? caught.message : "Secure link could not be copied."); }
   };
   return (
     <>
@@ -1049,7 +1057,7 @@ function Invoices({
                     </Status>
                   </td>
                   <td>
-                    <div className="ops-row-actions"><button className="ops-link" onClick={() => print(s)}>Print / PDF</button><button className="ops-link" onClick={() => share(s, "email")}>Email</button><button className="ops-link" onClick={() => share(s, "whatsapp")}>WhatsApp</button></div>
+                    <div className="ops-row-actions"><button className="ops-link" onClick={() => print(s)}>Print / PDF</button><button className="ops-link" onClick={() => void copyShare("invoice", s.id, s.customer?.name, s.customer?.email)}>Copy link</button><button className="ops-link" onClick={() => void share(s, "email")}>Email</button><button className="ops-link" onClick={() => void share(s, "whatsapp")}>WhatsApp</button></div>
                   </td>
                 </tr>
               ))}
@@ -1090,6 +1098,7 @@ function Invoices({
                     </Status>
                   </td>
                   <td>
+                    <button className="ops-link" onClick={() => void copyShare("quotation", q.id, q.customer?.name)}>Share link</button>
                     {q.status !== "converted" && (
                       <button
                         className="ops-link"
@@ -1135,6 +1144,7 @@ function Invoices({
                     </Status>
                   </td>
                   <td>
+                    <button className="ops-link" onClick={() => void copyShare("proforma", p.id, p.customer?.name)}>Share link</button>
                     {p.status !== "converted" && (
                       <button
                         className="ops-link"
@@ -1389,6 +1399,8 @@ function Reports({
 }) {
   const [now] = useState(() => Date.now());
   const [period, setPeriod] = useState<"month" | "week" | "today" | "custom">("month");
+  const [basis, setBasis] = useState<"accrual" | "cash">("accrual");
+  const [reportView, setReportView] = useState<"summary" | "products" | "customers" | "payments" | "overdue" | "purchases">("summary");
   const [from, setFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
   const [to, setTo] = useState(today);
   const bounds = useMemo(() => {
@@ -1408,8 +1420,12 @@ function Reports({
   const reportItems = data.saleItems.filter((item) => reportSales.some((sale) => sale.id === item.sale_id));
   const reportExpenses = data.expenses.filter((expense) => inRange(expense.expense_date));
   const reportMetrics = {
-    revenue: reportSales.reduce((sum, sale) => sum + Number(sale.total), 0),
-    cogs: reportItems.reduce((sum, item) => sum + Number(item.cost_price) * Number(item.quantity - item.returned_quantity), 0),
+    revenue: reportSales.reduce((sum, sale) => sum + Number(basis === "cash" ? sale.amount_paid : sale.total), 0),
+    cogs: reportItems.reduce((sum, item) => {
+      const sale = reportSales.find((entry) => entry.id === item.sale_id);
+      const paidRatio = basis === "cash" && sale?.total ? Math.min(1, Number(sale.amount_paid) / Number(sale.total)) : 1;
+      return sum + Number(item.cost_price) * Number(item.quantity - item.returned_quantity) * paidRatio;
+    }, 0),
     expenses: reportExpenses.filter((expense) => expense.status === "posted").reduce((sum, expense) => sum + Number(expense.amount) + Number(expense.tax_amount), 0),
   };
   const exportReport = () => downloadCsv("aqan-profit-report.csv", ["Period", "Sales revenue", "Cost of goods sold", "Gross profit", "Expenses", "Net operating profit"], [[`${from} to ${to}`, reportMetrics.revenue, reportMetrics.cogs, reportMetrics.revenue - reportMetrics.cogs, reportMetrics.expenses, reportMetrics.revenue - reportMetrics.cogs - reportMetrics.expenses]]);
@@ -1417,11 +1433,23 @@ function Reports({
     (a, p) => a + p.stock * (p.average_cost || p.cost),
     0,
   );
+  const productSummary = Array.from(reportItems.reduce((map, item) => {
+    const current = map.get(item.product_name) || { name: item.product_name, quantity: 0, revenue: 0, cost: 0 };
+    current.quantity += Number(item.quantity - item.returned_quantity); current.revenue += Number(item.line_total); current.cost += Number(item.cost_price) * Number(item.quantity - item.returned_quantity); map.set(item.product_name, current); return map;
+  }, new Map<string, { name: string; quantity: number; revenue: number; cost: number }>()).values()).sort((a, b) => b.revenue - a.revenue);
+  const customerSummary = Array.from(reportSales.reduce((map, sale) => {
+    const name = sale.customer?.name || "Walk-in Customer"; const current = map.get(name) || { name, invoices: 0, revenue: 0, paid: 0, balance: 0 };
+    current.invoices += 1; current.revenue += Number(sale.total); current.paid += Number(sale.amount_paid); current.balance += Number(sale.balance_due); map.set(name, current); return map;
+  }, new Map<string, { name: string; invoices: number; revenue: number; paid: number; balance: number }>()).values()).sort((a, b) => b.revenue - a.revenue);
+  const overdue = data.sales.filter((sale) => sale.balance_due > 0 && sale.due_date && new Date(sale.due_date).getTime() < now);
+  const reportPurchases = data.purchases.filter((purchase) => inRange(purchase.purchase_date));
   return (
     <>
       <div className="ops-filterbar">
         <div>
           {([ ["month", "This month"], ["week", "This week"], ["today", "Today"], ["custom", "Custom range"] ] as const).map(([key, label]) => <button key={key} className={period === key ? "active" : ""} onClick={() => setPeriod(key)}>{label}</button>)}
+          <button className={basis === "accrual" ? "active" : ""} onClick={() => setBasis("accrual")}>Accrual</button>
+          <button className={basis === "cash" ? "active" : ""} onClick={() => setBasis("cash")}>Cash basis</button>
         </div>
         <div className="ops-report-actions">{period === "custom" ? <><input aria-label="Report start date" type="date" value={from} onChange={(event) => setFrom(event.target.value)} /><input aria-label="Report end date" type="date" value={to} onChange={(event) => setTo(event.target.value)} /></> : null}<button className="button secondary" onClick={exportReport}>Export CSV</button><button className="button secondary" onClick={() => window.print()}>Print / Save PDF</button></div>
       </div>
@@ -1459,7 +1487,8 @@ function Reports({
           <strong>{money(metrics.payable)}</strong>
         </article>
       </section>
-      <div className="ops-split">
+      <div className="ops-doc-tabs ops-report-tabs">{([ ["summary","Summary"], ["products","By product"], ["customers","By customer"], ["payments","Payments"], ["overdue","Overdue"], ["purchases","Purchases"] ] as const).map(([key,label]) => <button key={key} className={reportView === key ? "active" : ""} onClick={() => setReportView(key)}>{label}</button>)}</div>
+      {reportView === "summary" ? <div className="ops-split">
         <div className="ops-card">
           <h3>Sales by product</h3>
           {[...reportItems]
@@ -1516,7 +1545,7 @@ function Reports({
             </b>
           </div>
         </div>
-      </div>
+      </div> : <div className="ops-table-wrap"><table className="ops-table"><thead><tr>{reportView === "products" ? <><th>Product</th><th>Quantity</th><th>Revenue</th><th>Cost</th><th>Gross profit</th></> : reportView === "customers" ? <><th>Customer</th><th>Invoices</th><th>Sales</th><th>Paid</th><th>Balance</th></> : reportView === "payments" ? <><th>Customer</th><th>Date</th><th>Method</th><th>Reference</th><th>Amount</th></> : reportView === "overdue" ? <><th>Invoice</th><th>Customer</th><th>Due date</th><th>Total</th><th>Balance</th></> : <><th>Purchase</th><th>Supplier</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th></>}</tr></thead><tbody>{reportView === "products" ? productSummary.map((row) => <tr key={row.name}><td><strong>{row.name}</strong></td><td>{row.quantity}</td><td>{money(row.revenue)}</td><td>{money(row.cost)}</td><td>{money(row.revenue-row.cost)}</td></tr>) : reportView === "customers" ? customerSummary.map((row) => <tr key={row.name}><td><strong>{row.name}</strong></td><td>{row.invoices}</td><td>{money(row.revenue)}</td><td>{money(row.paid)}</td><td>{money(row.balance)}</td></tr>) : reportView === "payments" ? data.customerPayments.filter((payment) => inRange(payment.received_at)).map((payment) => <tr key={payment.id}><td><strong>{payment.customer?.name || "Customer"}</strong></td><td>{date(payment.received_at)}</td><td>{payment.method}</td><td>{payment.reference || "—"}</td><td>{money(payment.amount)}</td></tr>) : reportView === "overdue" ? overdue.map((sale) => <tr key={sale.id}><td><strong>{sale.invoice_number}</strong></td><td>{sale.customer?.name || "Walk-in Customer"}</td><td>{date(sale.due_date)}</td><td>{money(sale.total)}</td><td>{money(sale.balance_due)}</td></tr>) : reportPurchases.map((purchase) => <tr key={purchase.id}><td><strong>{purchase.purchase_number}</strong></td><td>{purchase.supplier?.name || "Supplier"}</td><td>{date(purchase.purchase_date)}</td><td>{money(purchase.total)}</td><td>{money(purchase.amount_paid)}</td><td>{money(purchase.balance_due)}</td></tr>)}</tbody></table></div>}
     </>
   );
 }

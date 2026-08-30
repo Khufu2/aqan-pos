@@ -31,7 +31,10 @@ export async function POST(request: Request) {
 
   const admin = createClient(url, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: authData, error: authError } = await admin.auth.getUser(bearer);
-  if (authError || !authData.user) return response({ error: "Your session has expired. Please sign in again." }, 401);
+  if (authError || !authData.user) {
+    console.warn("[team/invite] Session validation failed", authError?.message || "No user returned");
+    return response({ error: "Your session has expired. Please sign in again." }, 401);
+  }
 
   const { data: inviter, error: membershipError } = await admin
     .from("aqan_memberships")
@@ -46,22 +49,29 @@ export async function POST(request: Request) {
     return response({ error: "Only the workspace owner can invite an administrator or manager." }, 403);
   }
 
-  const redirectTo = new URL("/", request.url);
+  const redirectTo = new URL("/", process.env.NEXT_PUBLIC_APP_URL || request.url);
   redirectTo.searchParams.set("setup", "staff");
   const { data: invitation, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: redirectTo.toString(),
     data: { full_name: fullName },
   });
-  if (inviteError || !invitation.user) {
+  let invitedUser = invitation.user;
+  let existing = false;
+  if (inviteError && /already.*registered|already.*exists/i.test(inviteError.message)) {
+    const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    invitedUser = users?.users.find((user) => user.email?.toLowerCase() === email) || null;
+    existing = Boolean(invitedUser);
+  }
+  if (!invitedUser) {
     const message = inviteError?.message || "The invitation could not be sent.";
-    return response({ error: /already.*registered|already.*exists/i.test(message) ? "This email already has a Supabase account. Ask the owner to add its existing user profile, or use a new work email." : message }, 400);
+    return response({ error: message }, 400);
   }
 
-  const userId = invitation.user.id;
+  const userId = invitedUser.id;
   const { error: profileError } = await admin.from("aqan_profiles").upsert({ id: userId, full_name: fullName });
   if (profileError) return response({ error: "Invite email was sent, but the staff profile could not be prepared. Contact AQAN support before the user signs in." }, 500);
   const { error: roleError } = await admin.from("aqan_memberships").upsert({ organization_id: inviter.organization_id, user_id: userId, role });
   if (roleError) return response({ error: "Invite email was sent, but the AQAN permission could not be assigned. Contact AQAN support before the user signs in." }, 500);
 
-  return response({ ok: true, email, role });
+  return response({ ok: true, email, role, existing });
 }

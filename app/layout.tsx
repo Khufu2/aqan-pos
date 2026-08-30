@@ -5,7 +5,7 @@ import "./accessibility.css";
 import "./purchasing-improvements.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://aqan-biomedical-pos.vercel.app"),
+  metadataBase: new URL("https://pos.aqanbiomedical.com"),
   title: "AQAN BIOMEDICAL POS",
   description: "Intelligent biomedical equipment sales, stock, CRM, service and customer growth in one secure workspace.",
   openGraph: {

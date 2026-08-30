@@ -47,6 +47,7 @@ import {
   loadStaff,
   setMemberRole,
   updateMyPassword,
+  requestPasswordReset,
   updateMyProfile,
   subscribeToSession,
   type AqanData,
@@ -62,6 +63,7 @@ import {
 import { isSupabaseConfigured } from "../lib/supabase";
 import OperationsView, { type OperationsMode } from "./components/OperationsView";
 import { addCustomer, completeOperationalSale } from "../lib/operations";
+import { copyDocumentShare, createDocumentShare } from "../lib/document-shares";
 
 const FacilityMap = dynamic(() => import("./components/FacilityMap"), { ssr: false });
 
@@ -1122,10 +1124,13 @@ function QuotationRecordModal({
       setBusy(false);
     }
   };
-  const share = (channel: "email" | "whatsapp") => {
+  const share = async (channel: "email" | "whatsapp") => {
     if (!detail) return;
-    const subject = `AQAN Biomedical quotation ${detail.quote_number}`;
-    const body = `Hello ${detail.customer?.contact_name || detail.customer?.name || "there"},\n\nYour AQAN Biomedical quotation ${detail.quote_number} totals ${formatTzs(Number(detail.total))} and is valid until ${new Date(detail.valid_until).toLocaleDateString("en-TZ")}.\n\nPlease contact us if you need any clarification.`;
+    setBusy(true); setError("");
+    try {
+      const secure = await createDocumentShare({ documentType: "quotation", documentId: detail.id, recipientName: detail.customer?.contact_name || detail.customer?.name, recipientEmail: detail.customer?.email, permission: "comment" });
+      const subject = `AQAN Biomedical quotation ${detail.quote_number}`;
+      const body = `Hello ${detail.customer?.contact_name || detail.customer?.name || "there"},\n\nYour AQAN Biomedical quotation ${detail.quote_number} totals ${formatTzs(Number(detail.total))} and is valid until ${new Date(detail.valid_until).toLocaleDateString("en-TZ")}.\n\nOpen, download, approve, comment or request changes securely: ${secure.url}`;
     if (channel === "email") {
       if (!detail.customer?.email) {
         setError("This customer has no email address saved.");
@@ -1145,6 +1150,15 @@ function QuotationRecordModal({
       );
     }
     if (detail.status === "draft") void setStatus("sent");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Secure link could not be created."); }
+    finally { setBusy(false); }
+  };
+  const copyShare = async () => {
+    if (!detail) return;
+    setBusy(true); setError("");
+    try { await copyDocumentShare({ documentType: "quotation", documentId: detail.id, recipientName: detail.customer?.contact_name || detail.customer?.name, recipientEmail: detail.customer?.email, permission: "comment" }); onToast("Secure quotation link copied. The customer can download, approve, comment or request changes."); if (detail.status === "draft") await setStatus("sent"); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "Secure link could not be copied."); }
+    finally { setBusy(false); }
   };
   const printQuotation = () => {
     if (!detail) return;
@@ -1319,15 +1333,18 @@ function QuotationRecordModal({
               <button className="button secondary" onClick={printQuotation}>
                 Print / save PDF
               </button>
+              <button className="button secondary" onClick={() => void copyShare()} disabled={busy}>
+                Copy customer link
+              </button>
               <button
                 className="button secondary"
-                onClick={() => share("email")}
+                onClick={() => void share("email")}
               >
                 Email customer
               </button>
               <button
                 className="button secondary"
-                onClick={() => share("whatsapp")}
+                onClick={() => void share("whatsapp")}
               >
                 WhatsApp
               </button>
@@ -1664,7 +1681,7 @@ function TeamAccessView({ membership, onToast }: { membership: Membership; onToa
     return () => { cancelled = true; };
   }, [membership.organization_id]);
   if (!['owner', 'admin'].includes(membership.role)) return <div className="workspace-page"><WorkspaceHeader kicker="Access control" title="Team & access" description="Only AQAN owners and admins can create staff accounts or adjust permissions." action="Back to overview" onAction={() => history.back()}/><div className="form-error">Your current role is <b>{membership.role}</b>. Ask an owner or administrator to manage team access.</div></div>;
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const form = new FormData(event.currentTarget); const email = String(form.get("email") || "").trim(); setBusy(true); setError(""); try { await inviteStaff({ fullName: String(form.get("full_name") || ""), email, role: String(form.get("role") || "viewer") as AssignableRole }); event.currentTarget.reset(); await refreshStaff(); onToast(`Invitation sent to ${email}. They set their own password from the secure email link.`); } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not send the staff invitation."); } finally { setBusy(false); } };
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement); const email = String(form.get("email") || "").trim(); setBusy(true); setError(""); try { const result = await inviteStaff({ fullName: String(form.get("full_name") || ""), email, role: String(form.get("role") || "viewer") as AssignableRole }); formElement.reset(); await refreshStaff(); onToast(result.existing ? `${email} already had an account and is now added to this workspace.` : `Invitation sent to ${email}. They set their own password from the secure email link.`); } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not send the staff invitation."); } finally { setBusy(false); } };
   const updateRole = async (userId: string, role: AssignableRole) => { setBusy(true); setError(""); try { await setMemberRole(userId, role); await refreshStaff(); onToast("Staff permission updated."); } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not update permission."); } finally { setBusy(false); } };
   const roleOptions: Array<[AssignableRole,string]> = [["admin","Administrator â settings, staff and all operations"],["manager","Manager â operations, profit and approvals"],["cashier","Cashier â sales, payments and receipts"],["salesperson","Salesperson â customers, quotes and sales"],["inventory","Inventory â products, purchases and stock"],["accountant","Accountant â payments, expenses and reports"],["service","Service â equipment, delivery and stock visibility"],["viewer","Viewer â read-only workspace access"]];
   return <div className="workspace-page"><WorkspaceHeader kicker="Access control" title="Team & access" description="Invite staff by email, let them set their own password, and give each person only the role they need." action="Refresh team" onAction={() => void refreshStaff()}/><section className="team-hero"><div><span className="section-kicker">Secure invitation workflow</span><h2>No shared passwords. No open access.</h2><p>An AQAN owner or administrator chooses the role. The staff member receives a secure Supabase email, creates their password, then enters only the workspace they were invited to.</p></div><div className="team-role-guide"><span><b>Cashier</b> sales & receipts</span><span><b>Inventory</b> products & purchasing</span><span><b>Accountant</b> balances & reports</span><span><b>Manager</b> operational control</span></div></section><section className="table-panel"><div className="panel-heading"><div><span className="section-kicker">Invite staff</span><h2>Send secure access</h2></div></div><form className="form-grid" onSubmit={submit}><label>Full name<input name="full_name" required placeholder="e.g. Asha Mrema"/></label><label>Work email<input name="email" type="email" required placeholder="asha@aqan.co.tz"/></label><label className="span-two">Permission<select name="role" defaultValue="salesperson">{roleOptions.map(([role,label])=><option key={role} value={role}>{label}</option>)}</select></label><div className="span-two form-note">The invitation email contains a one-time secure link. AQAN never shows or stores a staff memberâs password.</div><div className="span-two modal-actions"><button className="button primary" disabled={busy}>{busy ? "Sending inviteâ¦" : "Send staff invitation"}</button></div></form>{error ? <div className="form-error">{error}</div> : null}</section><section className="table-panel"><div className="panel-heading"><div><span className="section-kicker">Current team</span><h2>Profiles & permissions</h2></div><span>{loading ? "Loadingâ¦" : `${staff.length} members`}</span></div><div className="data-table"><div className="table-head"><span>Staff member</span><span>Current role</span><span>Change permission</span></div>{staff.map((person) => <div className="table-row" key={person.user_id}><span><b>{person.full_name || "Unnamed staff"}</b></span><span><em className="pill success">{person.role}</em></span><span>{person.role === "owner" ? <small>Owner access is protected</small> : <select value={person.role} disabled={busy} onChange={(event) => void updateRole(person.user_id, event.target.value as AssignableRole)}>{roleOptions.map(([role,label])=><option key={role} value={role}>{label.split(" â ")[0]}</option>)}</select>}</span></div>)}</div></section></div>;
@@ -1676,11 +1693,12 @@ function AuthModal({ session, membership, onClose, onToast }: {
   onClose: () => void;
   onToast: (message: string) => void;
 }) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
   const [inviteSetup] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "staff");
+  const [recoverySetup] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "recovery");
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -1758,15 +1776,28 @@ function AuthModal({ session, membership, onClose, onToast }: {
       await updateMyPassword(password);
       window.history.replaceState({}, "", window.location.pathname);
       onToast("Password secured. Your AQAN access is ready.");
+      onClose();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Password could not be updated."); }
     finally { setBusy(false); }
   };
 
-  if (session && membership) return null;
+  const sendReset = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const email = String(new FormData(event.currentTarget).get("email") || "");
+    setBusy(true); setError("");
+    try {
+      await requestPasswordReset(email);
+      setPendingConfirmationEmail(email);
+      onToast("If that account exists, a secure password reset email is on its way.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Password reset email could not be sent."); }
+    finally { setBusy(false); }
+  };
+
+  if (session && membership && !recoverySetup) return null;
   return <div className="modal-backdrop"><div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
     <button className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close"/></button>
     <Logo/>
-    {!isSupabaseConfigured ? <div className="auth-empty"><span className="success-icon"><Icon name="shield" size={28}/></span><span className="section-kicker">Backend prepared</span><h2 id="auth-title">AQAN connection pending</h2><p>The application is ready for the AQAN Supabase URL and publishable key.</p></div> : inviteSetup && session ? <form className="auth-form" onSubmit={setInvitePassword}><span className="section-kicker">Staff invitation accepted</span><h2 id="auth-title">Create your AQAN password</h2><p>Your role and workspace have been prepared by the AQAN administrator. Choose a secure password to finish access.</p><label>New password<input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="At least 8 characters"/></label>{error ? <div className="form-error">{error}</div> : null}<button className="button primary full-button" disabled={busy}>{busy ? "Securingâ¦" : "Secure my account"}</button></form> : pendingConfirmationEmail ? <div className="auth-empty"><span className="success-icon"><Icon name="check" size={28}/></span><span className="section-kicker">Confirmation required</span><h2 id="auth-title">Check your email</h2><p>We created <b>{pendingConfirmationEmail}</b>. Open its confirmation link, then return here and sign in. Check spam too.</p>{error ? <div className="form-error">{error}</div> : null}<button className="button primary full-button" onClick={() => void resendConfirmation()} disabled={busy}>{busy ? "Requestingâ¦" : "Resend confirmation email"}</button><button className="text-button centered" type="button" onClick={() => { setPendingConfirmationEmail(""); setMode("signin"); setError(""); }}>Back to sign in</button></div> : session && membership ? <div className="auth-empty"><span className="success-icon"><Icon name="check" size={28}/></span><span className="section-kicker">Authenticated</span><h2 id="auth-title">{membership.organization_name}</h2><p>{session.user.email} has <b>{membership.role}</b> access to live operations.</p><button className="button secondary full-button" onClick={() => void signOut()}>Sign out</button></div> : session ? <form className="auth-form" onSubmit={requestAccess}><span className="section-kicker">Workspace approval</span><h2 id="auth-title">Join AQAN workspace</h2><p>First setup? Claim owner access. After that, new staff request approval from an owner.</p><label>Full name<input name="full_name" required defaultValue={String(session.user.user_metadata?.full_name || "")} placeholder="Your full name"/></label>{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button type="button" className="button primary" onClick={(event) => void claimOwner(String(new FormData(event.currentTarget.form!).get("full_name") || ""))} disabled={busy}>{busy ? "Checkingâ¦" : "Claim first owner"}</button><button className="button secondary" disabled={busy}>{busy ? "Sendingâ¦" : "Request access"}</button></div><button className="text-button centered" type="button" onClick={() => void signOut()}>Use a different account</button></form> : <form className="auth-form" onSubmit={submit}><span className="section-kicker">Secure staff access</span><h2 id="auth-title">{mode === "signin" ? "Sign in to AQAN" : "Create your staff account"}</h2><p>Customer, price and sales data is protected by row-level permissions.</p>{mode === "signup" ? <label>Full name<input name="full_name" required placeholder="e.g. Ivo Gerald"/></label> : null}<label>Email address<input type="email" name="email" required autoComplete="email" placeholder="you@aqan.co.tz"/></label><label>Password<input type="password" name="password" required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder="At least 8 characters"/></label>{error ? <div className="form-error">{error}</div> : null}<button className="button primary full-button" disabled={busy}>{busy ? "Please waitâ¦" : mode === "signin" ? "Sign in securely" : "Create account"}</button><button className="text-button centered" type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}>{mode === "signin" ? "New staff member? Create account" : "Already registered? Sign in"}</button></form>}
+    {!isSupabaseConfigured ? <div className="auth-empty"><span className="success-icon"><Icon name="shield" size={28}/></span><span className="section-kicker">Backend prepared</span><h2 id="auth-title">AQAN connection pending</h2><p>The application is ready for the AQAN Supabase URL and publishable key.</p></div> : (inviteSetup || recoverySetup) && session ? <form className="auth-form" onSubmit={setInvitePassword}><span className="section-kicker">{recoverySetup ? "Password recovery" : "Staff invitation accepted"}</span><h2 id="auth-title">{recoverySetup ? "Choose a new password" : "Create your AQAN password"}</h2><p>{recoverySetup ? "Your recovery link is verified. Choose a new secure password for your account." : "Your role and workspace have been prepared by the AQAN administrator. Choose a secure password to finish access."}</p><label>New password<input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="At least 8 characters"/></label>{error ? <div className="form-error">{error}</div> : null}<button className="button primary full-button" disabled={busy}>{busy ? "Securing…" : "Save new password"}</button></form> : pendingConfirmationEmail ? <div className="auth-empty"><span className="success-icon"><Icon name="check" size={28}/></span><span className="section-kicker">Email sent</span><h2 id="auth-title">Check your email</h2><p>Open the secure link sent to <b>{pendingConfirmationEmail}</b>. Check spam too.</p>{error ? <div className="form-error">{error}</div> : null}{mode === "signup" ? <button className="button primary full-button" onClick={() => void resendConfirmation()} disabled={busy}>{busy ? "Requesting…" : "Resend confirmation email"}</button> : null}<button className="text-button centered" type="button" onClick={() => { setPendingConfirmationEmail(""); setMode("signin"); setError(""); }}>Back to sign in</button></div> : session ? <form className="auth-form" onSubmit={requestAccess}><span className="section-kicker">Workspace approval</span><h2 id="auth-title">Join AQAN workspace</h2><p>First setup? Claim owner access. After that, new staff request approval from an owner.</p><label>Full name<input name="full_name" required defaultValue={String(session.user.user_metadata?.full_name || "")} placeholder="Your full name"/></label>{error ? <div className="form-error">{error}</div> : null}<div className="modal-actions"><button type="button" className="button primary" onClick={(event) => void claimOwner(String(new FormData(event.currentTarget.form!).get("full_name") || ""))} disabled={busy}>{busy ? "Checking…" : "Claim first owner"}</button><button className="button secondary" disabled={busy}>{busy ? "Sending…" : "Request access"}</button></div><button className="text-button centered" type="button" onClick={() => void signOut()}>Use a different account</button></form> : mode === "forgot" ? <form className="auth-form" onSubmit={sendReset}><span className="section-kicker">Account recovery</span><h2 id="auth-title">Reset your password</h2><p>We will email a one-time secure link. For privacy, the response is the same whether or not the address exists.</p><label>Email address<input type="email" name="email" required autoComplete="email" placeholder="you@aqan.co.tz"/></label>{error ? <div className="form-error">{error}</div> : null}<button className="button primary full-button" disabled={busy}>{busy ? "Sending…" : "Send reset link"}</button><button className="text-button centered" type="button" onClick={() => { setMode("signin"); setError(""); }}>Back to sign in</button></form> : <form className="auth-form" onSubmit={submit}><span className="section-kicker">Secure staff access</span><h2 id="auth-title">{mode === "signin" ? "Sign in to AQAN" : "Create your staff account"}</h2><p>Customer, price and sales data is protected by row-level permissions.</p>{mode === "signup" ? <label>Full name<input name="full_name" required placeholder="e.g. Ivo Gerald"/></label> : null}<label>Email address<input type="email" name="email" required autoComplete="email" placeholder="you@aqan.co.tz"/></label><label>Password<input type="password" name="password" required minLength={8} autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder="At least 8 characters"/></label>{error ? <div className="form-error">{error}</div> : null}<button className="button primary full-button" disabled={busy}>{busy ? "Please wait…" : mode === "signin" ? "Sign in securely" : "Create account"}</button>{mode === "signin" ? <button className="text-button centered" type="button" onClick={() => { setMode("forgot"); setError(""); }}>Forgot password?</button> : null}<button className="text-button centered" type="button" onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}>{mode === "signin" ? "New staff member? Create account" : "Already registered? Sign in"}</button></form>}
   </div></div>;
 }
 

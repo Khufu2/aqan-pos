@@ -1,5 +1,20 @@
-html, body { overflow-x: hidden; overflow-y: auto; }
-.main-area { min-height: 100dvh; }
+html, body { width: 100%; max-width: 100%; min-height: 100%; overflow-x: clip; overflow-y: auto; }
+body, .app-shell, .main-area, .page-content, .workspace-page, .operations-page { min-width: 0; }
+.app-shell { width: 100%; overflow: visible; }
+.sidebar { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.main-area { min-height: 100dvh; overflow: visible; }
+.page-content, .workspace-page { max-width: 100%; }
+.data-table, .ops-table-wrap, .quote-line-list { max-width: 100%; }
+
+/* Keep the assistant available without covering right-aligned save/share buttons. */
+@media (min-width: 681px) {
+  .floating-ai-launcher { left: 268px; right: auto; }
+  .floating-ai-panel { left: 268px; right: auto; }
+}
+
+@media (min-width: 681px) and (max-width: 1180px) {
+  .floating-ai-launcher, .floating-ai-panel { left: 229px; }
+}
 
 .ops-supplier-panel, .ops-purchase-orders {
   margin: 16px 0;

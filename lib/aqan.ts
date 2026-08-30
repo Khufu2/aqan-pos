@@ -333,7 +333,7 @@ export async function inviteStaff(input: { email: string; fullName: string; role
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.error) throw new Error(data?.error || "The staff invitation could not be sent.");
-  return data as { ok: true; email: string; role: string };
+  return data as { ok: true; email: string; role: string; existing?: boolean };
 }
 
 export async function updateMyProfile(input: { fullName: string; phone: string; language: "en" | "sw"; theme: "light" | "dark" | "system"; fontSize?: "small" | "standard" | "large" }) {
@@ -352,6 +352,15 @@ export async function updateMyProfile(input: { fullName: string; phone: string; 
 export async function updateMyPassword(password: string) {
   const client = requireClient();
   const { error } = await client.auth.updateUser({ password });
+  if (error) throw error;
+}
+
+export async function requestPasswordReset(email: string) {
+  const client = requireClient();
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://pos.aqanbiomedical.com";
+  const { error } = await client.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo: `${origin}/?setup=recovery`,
+  });
   if (error) throw error;
 }
 
@@ -670,7 +679,7 @@ export async function signUp(email: string, password: string, fullName: string) 
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: "https://aqan-biomedical-pos.vercel.app",
+      emailRedirectTo: typeof window !== "undefined" ? window.location.origin : "https://pos.aqanbiomedical.com",
     },
   });
   if (error) throw error;
@@ -682,7 +691,7 @@ export async function resendSignupConfirmation(email: string) {
   const { error } = await client.auth.resend({
     type: "signup",
     email,
-    options: { emailRedirectTo: "https://aqan-biomedical-pos.vercel.app" },
+    options: { emailRedirectTo: typeof window !== "undefined" ? window.location.origin : "https://pos.aqanbiomedical.com" },
   });
   if (error) throw error;
 }

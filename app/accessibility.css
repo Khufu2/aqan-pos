@@ -1,22 +1,12 @@
 /* Readable default type and a user-controlled accessibility scale. */
 .app-shell {
-  --aqan-ui-scale: 1.08;
+  --aqan-ui-size: 16px;
+  font-size: var(--aqan-ui-size);
 }
 
-.app-shell[data-font-size="small"] { --aqan-ui-scale: 0.96; }
-.app-shell[data-font-size="standard"] { --aqan-ui-scale: 1.08; }
-.app-shell[data-font-size="large"] { --aqan-ui-scale: 1.18; }
-
-@supports (zoom: 1) {
-  .app-shell { zoom: var(--aqan-ui-scale); }
-}
-
-/* Graceful fallback for browsers that do not implement CSS zoom. */
-@supports not (zoom: 1) {
-  .app-shell { font-size: 17px; }
-  .app-shell[data-font-size="small"] { font-size: 15px; }
-  .app-shell[data-font-size="large"] { font-size: 19px; }
-}
+.app-shell[data-font-size="small"] { --aqan-ui-size: 15px; }
+.app-shell[data-font-size="standard"] { --aqan-ui-size: 16px; }
+.app-shell[data-font-size="large"] { --aqan-ui-size: 18px; }
 
 .font-size-options {
   display: grid;
