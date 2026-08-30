@@ -76,3 +76,30 @@
   .font-size-options button { min-height: 68px; }
   .workspace-loading-content { align-items: flex-start; }
 }
+
+/* Header controls are SVG-based, avoiding platform-specific emoji or icon fonts. */
+.topbar > .global-search, .topbar > .top-actions { visibility: hidden; pointer-events: none; }
+.aqan-header-tools { position: fixed; z-index: 28; top: 18px; right: 31px; display: flex; align-items: center; gap: 12px; }
+.aqan-header-tools > button, .aqan-notification-wrap > button { width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 11px; background: var(--white); color: var(--ink); display: grid; place-items: center; position: relative; }
+.aqan-header-tools .language-switch { width: auto; min-width: 54px; display: flex; gap: 5px; padding: 0 8px; }
+.aqan-header-tools .language-switch b { font: 800 11px/1 "DM Sans", sans-serif; letter-spacing: .06em; }
+.aqan-global-search-wrap, .aqan-notification-wrap { position: relative; }
+.aqan-global-search { width: 275px; height: 38px; border: 1px solid var(--border); border-radius: 11px; background: var(--white); color: var(--muted); display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+.aqan-global-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; }
+.aqan-global-search kbd { font: 700 9px/1 "DM Sans", sans-serif; color: var(--muted); background: var(--canvas); border: 1px solid var(--border); border-radius: 5px; padding: 3px 5px; white-space: nowrap; }
+.aqan-search-results, .aqan-notifications { position: absolute; top: calc(100% + 9px); right: 0; width: min(390px, calc(100vw - 30px)); border: 1px solid var(--border); border-radius: 14px; background: var(--white); box-shadow: 0 18px 48px rgba(15,23,42,.18); padding: 7px; overflow: hidden; }
+.aqan-search-results button, .aqan-notifications > button { width: 100%; border: 0; border-radius: 9px; background: transparent; color: var(--ink); display: grid; grid-template-columns: 20px minmax(0,1fr) 18px; gap: 9px; align-items: center; text-align: left; padding: 10px; }
+.aqan-search-results button:hover, .aqan-notifications > button:hover { background: var(--canvas); }
+.aqan-search-results span, .aqan-notifications span { display: grid; gap: 3px; min-width: 0; }
+.aqan-search-results b, .aqan-notifications b { font-size: 12px; }
+.aqan-search-results small, .aqan-notifications small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.aqan-search-results > p, .aqan-notifications > p { margin: 0; padding: 13px; color: var(--muted); font-size: 12px; }
+.aqan-notifications { width: min(380px, calc(100vw - 30px)); }
+.aqan-notifications header { display: flex; align-items: baseline; justify-content: space-between; padding: 9px 10px 8px; }
+.aqan-notifications header b { font-size: 13px; }
+.aqan-notifications header small { font-size: 11px; color: var(--muted); }
+.aqan-notifications > button svg:first-child { color: #e08a19; }
+.app-shell[data-theme="dark"] .aqan-header-tools > button, .app-shell[data-theme="dark"] .aqan-notification-wrap > button, .app-shell[data-theme="dark"] .aqan-global-search, .app-shell[data-theme="dark"] .aqan-search-results, .app-shell[data-theme="dark"] .aqan-notifications { background: #102128; color: #e7f1f4; border-color: #2b4a55; }
+.app-shell[data-theme="dark"] .aqan-search-results button:hover, .app-shell[data-theme="dark"] .aqan-notifications > button:hover { background: #14303a; }
+@media (max-width: 900px) { .aqan-header-tools { right: 20px; top: 16px; } .aqan-global-search { width: 230px; } }
+@media (max-width: 680px) { .topbar > .global-search, .topbar > .top-actions { display: none; } .aqan-header-tools { top: 12px; right: 14px; gap: 7px; } .aqan-global-search { width: calc(100vw - 220px); min-width: 118px; height: 38px; } .aqan-global-search kbd { display: none; } .aqan-header-tools > button, .aqan-notification-wrap > button { width: 38px; height: 38px; } .aqan-header-tools .language-switch { min-width: 45px; padding: 0 6px; } .aqan-header-tools .language-switch b { font-size: 10px; } .aqan-search-results, .aqan-notifications { position: fixed; top: 59px; right: 14px; left: 14px; width: auto; max-height: calc(100dvh - 85px); overflow: auto; } }

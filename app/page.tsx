@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -73,7 +73,7 @@ type IconName =
   | "home" | "sale" | "inventory" | "customers" | "quote" | "service"
   | "campaign" | "insights" | "search" | "bell" | "plus" | "arrow"
   | "sparkles" | "trend" | "warning" | "check" | "close" | "minus"
-  | "trash" | "shield" | "more";
+  | "trash" | "shield" | "more" | "globe" | "sun" | "moon";
 
 const iconPaths: Record<IconName, React.ReactNode> = {
   home: <><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5M9 21v-7h6v7"/></>,
@@ -94,6 +94,9 @@ const iconPaths: Record<IconName, React.ReactNode> = {
   trash: <><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14"/><path d="M10 11v6M14 11v6"/></>,
   shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></>,
   more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
+  globe: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></>,
+  sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></>,
+  moon: <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z"/>,
 };
 
 function Icon({ name, size = 20, strokeWidth = 1.8 }: { name: IconName; size?: number; strokeWidth?: number }) {
@@ -125,11 +128,23 @@ const formatTzs = (value: number) => `TZS ${value.toLocaleString("en-US")}`;
 type AqanLanguage = "en" | "sw";
 type AqanTheme = "light" | "dark" | "system";
 type AqanFontSize = "small" | "standard" | "large";
+type WorkspaceSearchResult = { id: string; label: string; detail: string; target: string };
+type WorkspaceNotification = { id: string; title: string; detail: string; target: string };
 const swNav: Record<string, string> = { dashboard: "Muhtasari", sell: "Mauzo mapya", invoices: "Ankara", returns: "Marejesho", payments: "Malipo", inventory: "Bidhaa na stoo", purchases: "Manunuzi", expenses: "Gharama", reports: "Ripoti", customers: "Wateja", crm: "CRM ya vituo", quotes: "Nukuu", service: "Huduma", campaigns: "Kampeni", logistics: "Usafirishaji", insights: "Akili", team: "Wafanyakazi", settings: "Mipangilio" };
-const languageOptions: Array<{ value: AqanLanguage; flag: string; label: string }> = [{ value: "en", flag: "ð¬ð§", label: "English" }, { value: "sw", flag: "ð¹ð¿", label: "Kiswahili" }];
-
 function Logo() {
   return <div className="brand aqan-brand"><img src="/aqan-biomedical-solutions.svg" alt="Aqan Biomedical Solutions"/></div>;
+}
+
+function HeaderTools({ language, activeTheme, query, results, notifications, searchOpen, notificationsOpen, inputRef, onQueryChange, onSearchOpen, onNotificationsOpen, onLanguageToggle, onThemeToggle, onOpenTarget }: { language: AqanLanguage; activeTheme: "light" | "dark"; query: string; results: WorkspaceSearchResult[]; notifications: WorkspaceNotification[]; searchOpen: boolean; notificationsOpen: boolean; inputRef: React.RefObject<HTMLInputElement | null>; onQueryChange: (value: string) => void; onSearchOpen: (open: boolean) => void; onNotificationsOpen: (open: boolean) => void; onLanguageToggle: () => void; onThemeToggle: () => void; onOpenTarget: (target: string) => void }) {
+  return <div className="aqan-header-tools">
+    <div className="aqan-global-search-wrap">
+      <label className="aqan-global-search"><Icon name="search" size={18}/><input ref={inputRef} value={query} onFocus={() => onSearchOpen(true)} onChange={(event) => { onQueryChange(event.target.value); onSearchOpen(true); }} onKeyDown={(event) => { if (event.key === "Enter" && results[0]) { event.preventDefault(); onOpenTarget(results[0].target); } }} placeholder={language === "sw" ? "Tafuta chochote" : "Search anything"} aria-label="Search the workspace"/><kbd>Ctrl K</kbd></label>
+      {searchOpen && query.trim() ? <div className="aqan-search-results" role="listbox">{results.length ? results.map((result) => <button type="button" key={result.id} onMouseDown={(event) => event.preventDefault()} onClick={() => onOpenTarget(result.target)}><Icon name="search" size={16}/><span><b>{result.label}</b><small>{result.detail}</small></span><Icon name="arrow" size={15}/></button>) : <p>No matching product, customer, document or supplier.</p>}</div> : null}
+    </div>
+    <button className="language-switch" type="button" onClick={onLanguageToggle} aria-label={language === "en" ? "Switch to Kiswahili" : "Switch to English"} title={language === "en" ? "Switch to Kiswahili" : "Switch to English"}><Icon name="globe" size={17}/><b>{language === "sw" ? "SW" : "EN"}</b></button>
+    <button className="theme-toggle" type="button" onClick={onThemeToggle} aria-label="Toggle dark mode">{activeTheme === "dark" ? <Icon name="sun" size={17}/> : <Icon name="moon" size={17}/>}</button>
+    <div className="aqan-notification-wrap"><button type="button" onClick={() => { onNotificationsOpen(!notificationsOpen); onSearchOpen(false); }} aria-label="Notifications" aria-expanded={notificationsOpen}><Icon name="bell" size={19}/>{notifications.length ? <span className="notification-dot"/> : null}</button>{notificationsOpen ? <div className="aqan-notifications" role="status"><header><b>Notifications</b><small>{notifications.length ? `${notifications.length} needs attention` : "All clear"}</small></header>{notifications.length ? notifications.map((notice) => <button type="button" key={notice.id} onClick={() => onOpenTarget(notice.target)}><Icon name="warning" size={17}/><span><b>{notice.title}</b><small>{notice.detail}</small></span><Icon name="arrow" size={15}/></button>) : <p>No operational alerts right now.</p>}</div> : null}</div>
+  </div>;
 }
 
 function firstName(name: string) {
@@ -1848,8 +1863,36 @@ export default function Home() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [authOpen, setAuthOpen] = useState(true);
   const [createMode, setCreateMode] = useState<CreateMode | null>(null);
+  const [workspaceQuery, setWorkspaceQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const workspaceSearchRef = useRef<HTMLInputElement>(null);
   const currentLabel = useMemo(() => nav.find((item) => item.id === view)?.label || "Overview", [view]);
   const currentDisplayLabel = language === "sw" ? (swNav[view] || currentLabel) : currentLabel;
+  const workspaceResults = useMemo(() => {
+    const query = workspaceQuery.trim().toLowerCase();
+    if (!query) return [];
+    const matches = (label: string, detail: string) => `${label} ${detail}`.toLowerCase().includes(query);
+    return [
+      ...data.products.filter((item) => matches(item.name, `${item.sku} ${item.category}`)).map((item) => ({ id: `product-${item.id}`, label: item.name, detail: `Product · ${item.sku}`, target: "inventory" })),
+      ...data.customers.filter((item) => matches(item.name, `${item.email || ""} ${item.phone || ""}`)).map((item) => ({ id: `customer-${item.id}`, label: item.name, detail: "Customer", target: "customers" })),
+      ...data.sales.filter((item) => matches(item.invoice_number, item.customer?.name || "")).map((item) => ({ id: `invoice-${item.id}`, label: item.invoice_number, detail: `Invoice · ${item.customer?.name || "Walk-in customer"}`, target: "invoices" })),
+      ...data.quotations.filter((item) => matches(item.quote_number, item.customer?.name || "")).map((item) => ({ id: `quote-${item.id}`, label: item.quote_number, detail: `Quotation · ${item.customer?.name || "Customer"}`, target: "quotes" })),
+      ...data.suppliers.filter((item) => matches(item.name, `${item.contact_name || ""} ${item.email || ""}`)).map((item) => ({ id: `supplier-${item.id}`, label: item.name, detail: "Supplier", target: "purchases" })),
+    ].slice(0, 8);
+  }, [data, workspaceQuery]);
+  const notifications = useMemo(() => {
+    const lowStock = data.products.filter((item) => item.stock <= item.reorder_level);
+    const pendingQuotes = data.quotations.filter((item) => ["draft", "sent", "viewed"].includes(item.status));
+    const balances = data.sales.filter((item) => ["unpaid", "partial", "overdue"].includes(item.status));
+    const openService = data.serviceRequests.filter((item) => !["resolved", "cancelled"].includes(item.status));
+    return [
+      ...(lowStock.length ? [{ id: "low-stock", title: `${lowStock.length} product${lowStock.length === 1 ? "" : "s"} need reorder attention`, detail: "Open inventory", target: "inventory" }] : []),
+      ...(pendingQuotes.length ? [{ id: "quote-follow-up", title: `${pendingQuotes.length} quotation${pendingQuotes.length === 1 ? "" : "s"} need follow-up`, detail: "Review sales pipeline", target: "quotes" }] : []),
+      ...(balances.length ? [{ id: "balances", title: `${balances.length} invoice${balances.length === 1 ? "" : "s"} have an outstanding balance`, detail: "Review invoices", target: "invoices" }] : []),
+      ...(openService.length ? [{ id: "service", title: `${openService.length} service request${openService.length === 1 ? "" : "s"} remain open`, detail: "Open service desk", target: "service" }] : []),
+    ];
+  }, [data]);
   const showToast = useCallback((message: string) => { setToast(message); window.setTimeout(() => setToast(""), 4200); }, []);
   const refreshForSession = useCallback(async (activeSession: Session | null) => {
     if (!isSupabaseConfigured || !activeSession) {
@@ -1900,6 +1943,18 @@ export default function Home() {
     const timer = window.setTimeout(() => setAuthOpen(false), 0);
     return () => window.clearTimeout(timer);
   }, [session?.user.id, membership?.organization_id]);
+  useEffect(() => {
+    const openSearch = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen(true);
+        workspaceSearchRef.current?.focus();
+      }
+      if (event.key === "Escape") { setSearchOpen(false); setNotificationsOpen(false); }
+    };
+    window.addEventListener("keydown", openSearch);
+    return () => window.removeEventListener("keydown", openSearch);
+  }, []);
 
   const hasLiveAccess = Boolean(session && membership);
   const displayProducts = hasLiveAccess ? data.products : [];
@@ -1909,6 +1964,7 @@ export default function Home() {
   const changeTheme = (nextTheme: AqanTheme) => { setTheme(nextTheme); localStorage.setItem("aqan-theme", nextTheme); if (session) void updateMyProfile({ fullName: String(session.user.user_metadata?.full_name || displayName), phone: String(session.user.user_metadata?.phone || ""), language, theme: nextTheme, fontSize }).catch(() => undefined); };
   const changeFontSize = (nextFontSize: AqanFontSize) => { setFontSize(nextFontSize); localStorage.setItem("aqan-font-size", nextFontSize); if (session) void updateMyProfile({ fullName: String(session.user.user_metadata?.full_name || displayName), phone: String(session.user.user_metadata?.phone || ""), language, theme, fontSize: nextFontSize }).catch(() => undefined); };
   const activeTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
+  const openWorkspaceTarget = (target: string) => { setView(target); setWorkspaceQuery(""); setSearchOpen(false); setNotificationsOpen(false); };
   const requireAccess = () => {
     if (!isSupabaseConfigured || !session || !membership) {
       setAuthOpen(true);
@@ -1961,6 +2017,7 @@ export default function Home() {
     <aside className="sidebar"><Logo/><nav aria-label="Main navigation"><span className="nav-label">{language === "sw" ? "Eneo la kazi" : "Workspace"}</span>{nav.filter((item) => item.id !== "team" || ['owner', 'admin'].includes(membership?.role ?? '')).map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><Icon name={item.icon} size={19}/><span>{language === "sw" ? (swNav[item.id] || item.label) : item.label}</span>{item.id === "service" ? <b>{data.serviceRequests.filter((request) => !["resolved", "cancelled"].includes(request.status)).length}</b> : null}</button>)}</nav><div className="sidebar-status"><div><Icon name="shield" size={17}/><span><strong>{hasLiveAccess ? "Live & secured" : "Sign in required"}</strong><small>{loading ? "Syncing workspaceâ¦" : hasLiveAccess ? "Supabase synced just now" : "No sample business data shown"}</small></span></div><button onClick={() => setAuthOpen(true)} aria-label="Open system status"><Icon name="arrow" size={16}/></button></div><button className="user-block" onClick={() => setView("settings")}><span className="avatar">{initials}</span><span><strong>{displayName}</strong><small>{membership?.role ?? "Secure access"}</small></span><Icon name="more" size={18}/></button></aside>
     <section className="main-area"><header className="topbar"><div className="mobile-brand"><Logo/></div><div className="breadcrumbs"><span>AQAN BIOMEDICAL POS</span><b>/</b><strong>{currentDisplayLabel}</strong></div><label className="global-search"><Icon name="search" size={18}/><input placeholder={language === "sw" ? "Tafuta chochoteâ¦" : "Search anythingâ¦"} aria-label="Search the workspace"/><kbd>â K</kbd></label><div className="top-actions"><button className="language-switch" type="button" onClick={() => changeLanguage(language === "en" ? "sw" : "en")} aria-label={language === "en" ? "Switch to Kiswahili" : "Switch to English"} title={language === "en" ? "Switch to Kiswahili" : "Switch to English"}><span>{language === "sw" ? "ð¹ð¿" : "ð¬ð§"}</span><b>{language === "sw" ? "SW" : "EN"}</b></button><button className="theme-toggle" onClick={() => changeTheme(activeTheme === "dark" ? "light" : "dark")} aria-label="Toggle dark mode">{activeTheme === "dark" ? "âï¸" : "ð"}</button><button aria-label="Notifications"><Icon name="bell" size={19}/><span className="notification-dot"/></button><span className="divider"/><button className="top-avatar" onClick={() => setView("settings")} aria-label="Open staff account">{initials}</button></div></header>{!hasLiveAccess ? <button className="connection-banner" onClick={() => setAuthOpen(true)}><Icon name="shield" size={16}/><span><strong>{session ? "Workspace approval required" : "Sign in to AQAN"}</strong>{session ? "Ask an AQAN owner to approve your workspace access." : "Create or sign in to a staff account to access live operations."}</span><Icon name="arrow" size={16}/></button> : null}{view === "dashboard" ? <Dashboard onNavigate={setView} data={data} displayName={displayName} language={language}/> : view === "sell" ? <PointOfSale products={displayProducts} customers={data.customers} vatRate={Number(data.settings?.vat_rate ?? 18)} onToast={showToast} onCheckout={checkout}/> : (["inventory","purchases","invoices","payments","returns","expenses","reports","customers"] as string[]).includes(view) ? <OperationsView mode={({inventory:"products",purchases:"purchases",invoices:"invoices",payments:"payments",returns:"returns",expenses:"expenses",reports:"reports",customers:"customers"} as Record<string,OperationsMode>)[view]} membership={membership} base={data} onToast={showToast} onRefresh={refresh} onNavigate={setView}/> : view === "crm" ? <FacilityCrmView data={data} membership={membership} language={language} onToast={showToast} onRefresh={refresh}/> : view === "quotes" ? <QuotesView data={data} membership={membership} onToast={showToast} onAdd={() => openCreate("quotation")} onRefresh={refresh}/> : view === "service" ? <ServiceView requests={data.serviceRequests} onToast={showToast} onAdd={() => openCreate("service")}/> : view === "campaigns" ? <CampaignsView campaigns={data.campaigns} onToast={showToast} onAdd={() => openCreate("campaign")}/> : view === "logistics" ? <LogisticsView data={data} membership={membership} onToast={showToast} onRefresh={refresh}/> : view === "settings" ? <SettingsView settings={data.settings} membership={membership} session={session} language={language} theme={theme} onLanguageChange={changeLanguage} onThemeChange={changeTheme} onToast={showToast} onRefresh={refresh}/> : view === "team" && membership ? <TeamAccessView membership={membership} onToast={showToast}/> : <IntelligenceView data={data} membership={membership} onToast={showToast} onRefresh={refresh}/>}</section>
     <FloatingAqanChat data={data} membership={membership} onToast={showToast} onRefresh={refresh} onOpenIntelligence={() => setView("insights")}/>
+    <HeaderTools language={language} activeTheme={activeTheme} query={workspaceQuery} results={workspaceResults} notifications={notifications} searchOpen={searchOpen} notificationsOpen={notificationsOpen} inputRef={workspaceSearchRef} onQueryChange={setWorkspaceQuery} onSearchOpen={setSearchOpen} onNotificationsOpen={setNotificationsOpen} onLanguageToggle={() => changeLanguage(language === "en" ? "sw" : "en")} onThemeToggle={() => changeTheme(activeTheme === "dark" ? "light" : "dark")} onOpenTarget={openWorkspaceTarget}/>
     <nav className="mobile-nav" aria-label="Mobile navigation">{nav.filter((item) => ["dashboard", "sell", "inventory", "crm", "insights"].includes(item.id)).map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><Icon name={item.icon} size={19}/><span>{item.id === "crm" ? "CRM" : item.label.split(" ")[0]}</span></button>)}</nav>{toast ? <div className="toast" role="status"><span><Icon name="check" size={16}/></span>{toast}</div> : null}
     {authOpen && !(session && membership) ? <AuthModal session={session} membership={membership} onClose={() => { if (session && membership) setAuthOpen(false); }} onToast={showToast}/> : null}
     {createMode ? <CreateModal mode={createMode} customers={data.customers} products={data.products} onClose={() => setCreateMode(null)} onSubmit={submitCreate}/> : null}
